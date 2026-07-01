@@ -1,0 +1,23 @@
+[package]
+name = "gk-grid"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "TODO DESCRIPTION"
+repository = "https://github.com/Rynvosis/gk-grid"
+keywords = ["grid","tilemap","bevy"]
+categories = ["game-development"]
+
+
+
+[dependencies]
+bevy = { version = "0.18", default-features = false, optional = true }
+glam = "0.33.2"
+
+[features]
+default = ["std"]
+std = []
+bevy = ["dep:bevy"]
+
+[dev-dependencies]
+bevy = { version = "0.18", default-features = false, features = ["bevy_winit", "bevy_sprite", "bevy_render"] }
