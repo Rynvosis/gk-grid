@@ -20,4 +20,4 @@ std = []
 bevy = ["dep:bevy"]
 
 [dev-dependencies]
-bevy = { version = "0.18", default-features = false, features = ["bevy_winit", "bevy_sprite", "bevy_render"] }
+bevy = { version = "0.18", default-features = false, features = [] }
