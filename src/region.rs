@@ -8,6 +8,7 @@ pub trait Region {
 }
 
 /// half-open rectangle region
+#[derive(Clone, Debug)]
 pub struct RectRegion {
     pub min: IVec2,
     pub max: IVec2,
