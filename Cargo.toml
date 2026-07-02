@@ -8,16 +8,15 @@ repository = "https://github.com/Rynvosis/gk-grid"
 keywords = ["grid","tilemap","bevy"]
 categories = ["game-development"]
 
-
-
 [dependencies]
-bevy = { version = "0.18", default-features = false, optional = true }
-glam = "0.33.2"
+bevy = { version = "0.18", optional = true }
+glam = "0.30.10"
 
 [features]
 default = ["std"]
 std = []
 bevy = ["dep:bevy"]
 
-[dev-dependencies]
-bevy = { version = "0.18", default-features = false, features = [] }
+[[example]]
+name = "square_grid"
+required-features = ["bevy"]

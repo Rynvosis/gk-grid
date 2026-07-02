@@ -2,6 +2,7 @@ use crate::grid::{Grid, GridGeometry, GridTopology, PointQuery};
 use glam::{Affine2, IVec2, Vec2};
 
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct SquareGrid {
     pub cell_size: Vec2,
     pub projection: Affine2, //IDENTIFY for a plain square grid
