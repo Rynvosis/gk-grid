@@ -1,7 +1,6 @@
-use crate::region::RectRegion;
+use crate::region::Region;
 
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct Tilemap {
-    pub region: RectRegion,
+pub trait Tilemap {
+    type TilemapRegion : Region;
+    fn region(&self) -> &Self::TilemapRegion;
 }
