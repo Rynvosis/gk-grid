@@ -14,6 +14,6 @@ pub mod prelude {
     pub use crate::region::{RectRegion, Region};
     #[cfg(feature = "bevy")]
     pub use crate::relations::{TilemapOf, Tilemaps};
-    pub use crate::square::SquareGrid;
+    pub use crate::square::{SquareGrid, SquareTilemap};
     pub use crate::tilemap::Tilemap;
 }
