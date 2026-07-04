@@ -74,6 +74,34 @@ impl Tilemap for SquareTilemap {
     }
 }
 
+/// Uniform square chunking: chunks of `size` cells.
+#[derive(Clone, Copy, Debug)]
+pub struct SquareChunkLayout {
+    pub size: IVec2,
+}
+
+impl ChunkLayout for SquareChunkLayout {
+    type Cell = IVec2;
+    type ChunkCoord = IVec2;
+    type ChunkRegion = RectRegion;
+
+    fn chunk_of(&self, cell: Self::Cell) -> Self::ChunkCoord {
+        todo!()
+    }
+
+    fn local_of(&self, cell: Self::Cell) -> Self::Cell {
+        todo!()
+    }
+
+    fn cell_at(&self, chunk: Self::ChunkCoord, local: Self::Cell) -> Self::Cell {
+        todo!()
+    }
+
+    fn chunk_region(&self, chunk: Self::ChunkCoord) -> Self::ChunkRegion {
+        todo!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
