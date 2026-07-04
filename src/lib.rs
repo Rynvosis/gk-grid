@@ -5,6 +5,7 @@ mod region;
 #[cfg(feature = "bevy")]
 mod relations;
 mod square;
+pub mod tile_storage;
 mod tilemap;
 
 pub mod prelude {

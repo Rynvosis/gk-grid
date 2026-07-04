@@ -1,5 +1,5 @@
-use glam::{Affine2, IVec2, Vec2};
 use crate::prelude::*;
+use glam::{Affine2, IVec2, Vec2};
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
@@ -10,7 +10,7 @@ pub struct SquareGrid {
 
 impl SquareGrid {
     pub fn new(cell_size: Vec2) -> Self {
-        Self::with_projection(cell_size,Affine2::IDENTITY)
+        Self::with_projection(cell_size, Affine2::IDENTITY)
     }
 
     pub fn with_projection(cell_size: Vec2, projection: Affine2) -> Self {
@@ -61,11 +61,10 @@ impl PointQuery for SquareGrid {
     }
 }
 
-
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct SquareTilemap {
-    pub region: RectRegion
+    pub region: RectRegion,
 }
 impl Tilemap for SquareTilemap {
     type TilemapRegion = RectRegion;
