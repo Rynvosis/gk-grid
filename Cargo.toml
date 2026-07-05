@@ -3,7 +3,7 @@ name = "gk-grid"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "TODO DESCRIPTION"
+description = "A grid library for Rust and Bevy, generic over grid shape."
 repository = "https://github.com/Rynvosis/gk-grid"
 keywords = ["grid","tilemap","bevy"]
 categories = ["game-development"]
@@ -19,4 +19,9 @@ bevy = ["dep:bevy"]
 
 [[example]]
 name = "square_grid"
+required-features = ["bevy"]
+
+
+[[example]]
+name = "chunked_grid"
 required-features = ["bevy"]

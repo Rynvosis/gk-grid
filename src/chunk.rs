@@ -18,6 +18,6 @@ pub trait ChunkLayout {
     /// Recombines a chunk coord and local cell into a global cell.
     fn cell_at(&self, chunk: Self::ChunkCoord, local: Self::Cell) -> Self::Cell;
 
-    /// A chunk's local region.
+    /// A chunk's region, in global cell coords.
     fn chunk_region(&self, chunk: Self::ChunkCoord) -> Self::ChunkRegion;
 }
