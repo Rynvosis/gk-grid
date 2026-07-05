@@ -1,3 +1,4 @@
+pub mod chunk;
 #[cfg(feature = "bevy")]
 mod gizmos;
 mod grid;
@@ -5,19 +6,20 @@ mod region;
 #[cfg(feature = "bevy")]
 mod relations;
 mod square;
-pub mod tile_storage;
-mod tilemap;
-pub mod chunk;
+mod store;
+#[cfg(feature = "bevy")]
+mod tiles;
 
 pub mod prelude {
+    pub use crate::chunk::ChunkLayout;
     #[cfg(feature = "bevy")]
     pub use crate::gizmos::{GridGizmo, GridGizmoPlugin};
-    pub use crate::chunk::ChunkLayout;
     pub use crate::grid::{Grid, GridGeometry, GridTopology, PointQuery};
     pub use crate::region::{RectRegion, Region};
     #[cfg(feature = "bevy")]
     pub use crate::relations::{TilemapOf, Tilemaps};
-    pub use crate::square::{SquareChunkLayout, SquareGrid, SquareTilemap};
-    pub use crate::tile_storage::TileStorage;
-    pub use crate::tilemap::Tilemap;
+    pub use crate::square::{SquareChunkLayout, SquareGrid};
+    pub use crate::store::{Chunked, Dense, Sparse, TileStore};
+    #[cfg(feature = "bevy")]
+    pub use crate::tiles::Tiles;
 }

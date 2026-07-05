@@ -7,37 +7,37 @@ pub struct GridGizmo {
     pub color: Color,
 }
 
-pub struct GridGizmoPlugin<T, G>(PhantomData<(T, G)>);
-impl<T, G> Default for GridGizmoPlugin<T, G> {
+pub struct GridGizmoPlugin<S, G>(PhantomData<(S, G)>);
+impl<S, G> Default for GridGizmoPlugin<S, G> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
-impl<T, G> Plugin for GridGizmoPlugin<T, G>
+impl<S, G> Plugin for GridGizmoPlugin<S, G>
 where
-    T: Component + Tilemap,
-    G: Component + GridGeometry<Cell = <T::TilemapRegion as Region>::Cell>,
+    S: TileStore + Component,
+    G: Component + GridGeometry<Cell = S::Cell>,
     G::Position: GizmoLine,
 {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, draw_tilemap_gizmos::<T, G>);
+        app.add_systems(Update, draw_tilemap_gizmos::<S, G>);
     }
 }
 
-fn draw_tilemap_gizmos<T, G>(
-    tilemaps: Query<(&T, &GridGizmo, &TilemapOf)>,
+fn draw_tilemap_gizmos<S, G>(
+    tilemaps: Query<(&S, &GridGizmo, &TilemapOf)>,
     grids: Query<&G>,
     mut gizmos: Gizmos,
 ) where
-    T: Component + Tilemap,
-    G: Component + GridGeometry<Cell = <T::TilemapRegion as Region>::Cell>,
+    S: TileStore + Component,
+    G: Component + GridGeometry<Cell = S::Cell>,
     G::Position: GizmoLine,
 {
-    for (tilemap, gizmo, grid) in tilemaps.iter() {
+    for (store, gizmo, grid) in tilemaps.iter() {
         let Ok(grid) = grids.get(grid.0) else {
             continue;
         };
-        for cell in tilemap.region().iter() {
+        for cell in store.cells() {
             let corners: Vec<G::Position> = grid.cell_corners(cell).collect();
             for i in 0..corners.len() {
                 corners[i].line(&mut gizmos, corners[(i + 1) % corners.len()], gizmo.color);
@@ -60,4 +60,4 @@ impl GizmoLine for Vec3 {
     }
 }
 
-//todo: draw_volumetric_tilemap_gizmos for grids with 3d cells, cells are a mesh
+//todo: draw_volumetric_tilemap_gizmos for 3d/mesh grids

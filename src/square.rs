@@ -5,7 +5,7 @@ use glam::{Affine2, IVec2, UVec2, Vec2};
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct SquareGrid {
     pub cell_size: Vec2,
-    pub projection: Affine2, //IDENTIFY for a plain square grid
+    pub projection: Affine2, // IDENTITY for a plain square grid
 }
 
 impl SquareGrid {
@@ -20,7 +20,7 @@ impl SquareGrid {
         }
     }
 
-    //todo: isometric()/cavalier(), helper functions
+    //todo: isometric()/cavalier() helpers
 }
 
 impl Grid for SquareGrid {
@@ -40,7 +40,7 @@ impl GridGeometry for SquareGrid {
 
     fn cell_to_world(&self, cell: Self::Cell) -> Self::Position {
         self.projection
-            .transform_point2((cell.as_vec2() + 0.5) * self.cell_size) //square center
+            .transform_point2((cell.as_vec2() + 0.5) * self.cell_size) // square center
     }
 
     fn cell_corners(&self, cell: Self::Cell) -> impl Iterator<Item = Self::Position> {
@@ -58,19 +58,6 @@ impl PointQuery for SquareGrid {
     fn world_to_cell(&self, world: Self::Position) -> Option<Self::Cell> {
         let local = self.projection.inverse().transform_point2(world);
         Some((local / self.cell_size).floor().as_ivec2())
-    }
-}
-
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct SquareTilemap {
-    pub region: RectRegion,
-}
-impl Tilemap for SquareTilemap {
-    type TilemapRegion = RectRegion;
-
-    fn region(&self) -> &Self::TilemapRegion {
-        &self.region
     }
 }
 
@@ -170,7 +157,10 @@ mod tests {
         assert_eq!(layout.local_of(IVec2::splat(8)), IVec2::ZERO);
         assert_eq!(layout.chunk_of(IVec2::splat(7)), IVec2::splat(-1));
         let cell = IVec2::new(3, 20);
-        assert_eq!(layout.cell_at(layout.chunk_of(cell), layout.local_of(cell)), cell);
+        assert_eq!(
+            layout.cell_at(layout.chunk_of(cell), layout.local_of(cell)),
+            cell
+        );
     }
 
     #[test]

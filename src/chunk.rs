@@ -1,4 +1,4 @@
-//chunks are basically just a finite space on a grid
+//! A chunk is a finite region of a grid.
 
 use crate::grid::GridCell;
 use crate::region::Region;

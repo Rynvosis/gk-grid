@@ -1,12 +1,13 @@
 use crate::grid::GridCell;
 use glam::{IVec2, UVec2};
 
+/// A bounded set of cells.
 pub trait Region {
     type Cell: GridCell;
     /// Iterates every cell in the region.
     fn iter(&self) -> impl Iterator<Item = Self::Cell>;
     fn contains(&self, cell: Self::Cell) -> bool;
-    /// Index of a cell, or `None` if it's outside the region.
+    /// Index of a cell in iteration order, or None if outside the region.
     fn index_of(&self, cell: Self::Cell) -> Option<usize> {
         self.iter().position(|c| c == cell)
     }
@@ -18,6 +19,7 @@ pub trait Region {
 
 /// A half-open rectangular region, origin inclusive and far edge exclusive.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct RectRegion {
     pub origin: IVec2,
     pub size: UVec2,
