@@ -1,5 +1,5 @@
 use crate::grid::GridCell;
-use glam::IVec2;
+use glam::{IVec2, UVec2};
 
 pub trait Region {
     type Cell: GridCell;
@@ -20,20 +20,18 @@ pub trait Region {
 #[derive(Clone, Debug, PartialEq)]
 pub struct RectRegion {
     pub origin: IVec2,
-    pub size: IVec2,
+    pub size: UVec2,
 }
 impl RectRegion {
-    /// Builds a region from two corners, treating the larger as exclusive.
-    pub fn new(corner1: IVec2, corner2: IVec2) -> Self {
-        let origin = IVec2::min(corner1, corner2);
-        let size = IVec2::max(corner1, corner2) - origin;
+    /// Builds a region from its origin and size.
+    pub fn new(origin: IVec2, size: UVec2) -> Self {
         RectRegion { origin, size }
     }
 
     /// Builds a region from two corners, both inclusive.
     pub fn from_corners_inclusive(corner1: IVec2, corner2: IVec2) -> Self {
         let origin = IVec2::min(corner1, corner2);
-        let size = IVec2::max(corner1, corner2) - origin + IVec2::ONE;
+        let size = (IVec2::max(corner1, corner2) - origin + IVec2::ONE).as_uvec2();
         RectRegion { origin, size }
     }
 
@@ -44,7 +42,7 @@ impl RectRegion {
 
     // One past the last cell in the region.
     fn end(&self) -> IVec2 {
-        self.origin + self.size
+        self.origin + self.size.as_ivec2()
     }
 
     fn clamp(&self, cell: IVec2) -> IVec2 {
@@ -67,7 +65,7 @@ impl Region for RectRegion {
             return None;
         }
         let local = self.to_local(cell);
-        Some((local.y * self.size.x + local.x) as usize)
+        Some((local.y * self.size.x as i32 + local.x) as usize)
     }
     fn len(&self) -> usize {
         self.size.x as usize * self.size.y as usize
@@ -80,7 +78,7 @@ mod tests {
 
     #[test]
     fn index_of_and_len_agree_with_iter_on_negative_origin() {
-        let region = RectRegion::new(IVec2::new(-4, -4), IVec2::new(2, 2));
+        let region = RectRegion::new(IVec2::new(-4, -4), UVec2::new(6, 6));
         for cell in region.iter() {
             assert_eq!(region.index_of(cell), region.iter().position(|c| c == cell));
         }
@@ -91,7 +89,7 @@ mod tests {
     #[test]
     fn index_of_matches_row_major_order_on_non_square_region() {
         // catches x/y transposition, which a square region can't.
-        let region = RectRegion::new(IVec2::ZERO, IVec2::new(5, 3));
+        let region = RectRegion::new(IVec2::ZERO, UVec2::new(5, 3));
         assert_eq!(region.index_of(IVec2::new(4, 0)), Some(4));
         assert_eq!(region.index_of(IVec2::new(0, 1)), Some(5));
         assert_eq!(region.len(), 15);
@@ -100,7 +98,7 @@ mod tests {
     #[test]
     fn from_corners_inclusive_matches_new_with_bumped_far_corner() {
         let inclusive = RectRegion::from_corners_inclusive(IVec2::ZERO, IVec2::new(3, 3));
-        let direct = RectRegion::new(IVec2::ZERO, IVec2::new(4, 4));
+        let direct = RectRegion::new(IVec2::ZERO, UVec2::new(4, 4));
         assert_eq!(inclusive, direct);
     }
 

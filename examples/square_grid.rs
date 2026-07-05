@@ -13,7 +13,7 @@ fn setup(mut commands: Commands) {
     let grid = commands.spawn(SquareGrid::new(Vec2::splat(32.0))).id();
     commands.spawn((
         SquareTilemap {
-            region: RectRegion::new(IVec2::splat(-10), IVec2::splat(10)),
+            region: RectRegion::new(IVec2::splat(-10), UVec2::splat(20)),
         },
         GridGizmo {
             color: Color::WHITE,
