@@ -15,6 +15,10 @@ pub trait Region {
     fn len(&self) -> usize {
         self.iter().count()
     }
+    /// Whether the region contains no cells.
+    fn is_empty(&self) -> bool {
+        self.iter().next().is_none()
+    }
 }
 
 /// A half-open rectangular region, origin inclusive and far edge exclusive.
@@ -45,10 +49,6 @@ impl RectRegion {
     // One past the last cell in the region.
     fn end(&self) -> IVec2 {
         self.origin + self.size.as_ivec2()
-    }
-
-    fn clamp(&self, cell: IVec2) -> IVec2 {
-        cell.clamp(self.origin, self.end() - 1)
     }
 }
 impl Region for RectRegion {

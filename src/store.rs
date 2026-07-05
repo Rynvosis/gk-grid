@@ -57,6 +57,12 @@ pub struct Sparse<C, T> {
     map: HashMap<C, T>,
 }
 
+impl<C: GridCell, T> Default for Sparse<C, T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<C: GridCell, T> Sparse<C, T> {
     /// An empty sparse store.
     pub fn new() -> Self {
