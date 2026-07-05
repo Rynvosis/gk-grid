@@ -27,10 +27,7 @@ impl<R: Region, T> Dense<R, T> {
     /// Builds full storage over a region, one value per cell from `fill`.
     pub fn from_region(region: R, fill: impl FnMut(R::Cell) -> T) -> Self {
         let tiles = region.iter().map(fill).collect();
-        Self {
-            region,
-            tiles,
-        }
+        Self { region, tiles }
     }
 }
 
@@ -39,7 +36,7 @@ impl<R: Region, T> TileStore for Dense<R, T> {
     type Item = T;
 
     fn get(&self, cell: R::Cell) -> Option<&T> {
-        self.region.index_of(cell).map(|i|&self.tiles[i])
+        self.region.index_of(cell).map(|i| &self.tiles[i])
     }
 
     fn get_mut(&mut self, cell: R::Cell) -> Option<&mut T> {
@@ -119,7 +116,9 @@ impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
     }
 
     fn get_mut(&mut self, cell: K::Cell) -> Option<&mut S::Item> {
-        self.chunks.get_mut(&self.layout.chunk_of(cell))?.get_mut(cell)
+        self.chunks
+            .get_mut(&self.layout.chunk_of(cell))?
+            .get_mut(cell)
     }
 
     fn cells(&self) -> impl Iterator<Item = K::Cell> {

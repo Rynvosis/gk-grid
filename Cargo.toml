@@ -20,3 +20,8 @@ bevy = ["dep:bevy"]
 [[example]]
 name = "square_grid"
 required-features = ["bevy"]
+
+
+[[example]]
+name = "chunked_grid"
+required-features = ["bevy"]
