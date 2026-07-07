@@ -13,7 +13,7 @@ mod tiles;
 pub mod prelude {
     pub use crate::chunk::ChunkLayout;
     #[cfg(feature = "bevy")]
-    pub use crate::gizmos::{GridGizmo, GridGizmoPlugin};
+    pub use crate::gizmos::{GridGizmoPlugin, cell_gizmo, tilemap_gizmo};
     pub use crate::grid::{Grid, GridGeometry, GridTopology, PointQuery};
     pub use crate::region::{RectRegion, Region};
     #[cfg(feature = "bevy")]
