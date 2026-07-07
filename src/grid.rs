@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-/// Marker for anything usable as a grid cell coordinate
+/// Marker for anything usable as a grid cell coordinate.
 pub trait GridCell: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
 impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridCell for T {}
 
@@ -16,9 +16,9 @@ pub trait GridTopology: Grid {
 pub trait GridGeometry: Grid {
     type Position: Copy + Send + Sync + 'static;
     fn cell_to_world(&self, cell: Self::Cell) -> Self::Position;
-    //corners of a cell in a fixed canonical winding order
+    /// Corners of a cell in a fixed winding order.
     fn cell_corners(&self, cell: Self::Cell) -> impl Iterator<Item = Self::Position>;
-    //todo: consider if coordinatesystem typesystem, baking orientability into it with things like cornermappings
+    //todo: coordinate-system type carrying orientation and corner mappings
 }
 
 pub trait PointQuery: GridGeometry {
