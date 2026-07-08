@@ -17,7 +17,8 @@ impl<S, G> Default for GridGizmoPlugin<S, G> {
 impl<S, G> Plugin for GridGizmoPlugin<S, G>
 where
     S: TileStore + Component,
-    G: Component + GridGeometry<Cell = S::Cell>,
+    G: Component + GridGeometry,
+    G::Grid: Grid<Cell = S::Cell>,
     G::Position: GizmoLine,
 {
     fn build(&self, app: &mut App) {

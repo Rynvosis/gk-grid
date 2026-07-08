@@ -1,9 +1,9 @@
-use crate::grid::GridCell;
+use crate::grid::GridCellIndex;
 use glam::{IVec2, UVec2};
 
 /// A bounded set of cells.
 pub trait Region {
-    type Cell: GridCell;
+    type Cell: GridCellIndex;
     /// Iterates every cell in the region.
     fn iter(&self) -> impl Iterator<Item = Self::Cell>;
     fn contains(&self, cell: Self::Cell) -> bool;
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn index_of_matches_row_major_order_on_non_square_region() {
-        // catches x/y transposition, which a square region can't.
+        // catches x/y transposition, which a quad region can't.
         let region = RectRegion::new(IVec2::ZERO, UVec2::new(5, 3));
         assert_eq!(region.index_of(IVec2::new(4, 0)), Some(4));
         assert_eq!(region.index_of(IVec2::new(0, 1)), Some(5));

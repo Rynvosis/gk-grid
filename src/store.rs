@@ -1,12 +1,12 @@
 use crate::chunk::ChunkLayout;
-use crate::grid::GridCell;
+use crate::grid::GridCellIndex;
 use crate::region::Region;
 use std::collections::HashMap;
 
 /// Per-cell data addressed by cell coordinate, over any backing.
 pub trait TileStore {
     /// Type used for Grid Coordinates
-    type Cell: GridCell;
+    type Cell: GridCellIndex;
     /// Type of Value in the store.
     type Item;
     /// Value at a cell, or None if the store holds nothing there.
@@ -58,13 +58,13 @@ pub struct Sparse<C, T> {
     map: HashMap<C, T>,
 }
 
-impl<C: GridCell, T> Default for Sparse<C, T> {
+impl<C: GridCellIndex, T> Default for Sparse<C, T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<C: GridCell, T> Sparse<C, T> {
+impl<C: GridCellIndex, T> Sparse<C, T> {
     /// An empty sparse store.
     pub fn new() -> Self {
         Sparse {
@@ -78,7 +78,7 @@ impl<C: GridCell, T> Sparse<C, T> {
     }
 }
 
-impl<C: GridCell, T> TileStore for Sparse<C, T> {
+impl<C: GridCellIndex, T> TileStore for Sparse<C, T> {
     type Cell = C;
     type Item = T;
 
@@ -141,7 +141,7 @@ impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
 mod tests {
     use super::*;
     use crate::region::RectRegion;
-    use crate::square::SquareChunkLayout;
+    use crate::quad::QuadChunkLayout;
     use glam::{IVec2, UVec2};
     use std::collections::HashSet;
 
@@ -178,7 +178,7 @@ mod tests {
     // get + cells() agree in global coords; a local/global mix-up breaks one of them.
     #[test]
     fn chunked_round_trips_global_cells() {
-        let layout = SquareChunkLayout::new(UVec2::splat(4));
+        let layout = QuadChunkLayout::new(UVec2::splat(4));
         let seeds = [IVec2::new(1, 2), IVec2::new(5, 6), IVec2::new(-2, 3)];
         let mut chunks = HashMap::new();
         for &cell in &seeds {

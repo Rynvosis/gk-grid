@@ -6,14 +6,14 @@ type ColorMap = Dense<RectRegion, Color>;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(GridGizmoPlugin::<ColorMap, SquareGrid>::default())
+        .add_plugins(GridGizmoPlugin::<ColorMap, QuadGridGeometry>::default())
         .add_systems(Startup, setup)
         .run();
 }
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
-    let grid = commands.spawn(SquareGrid::new(Vec2::splat(16.0))).id();
-    let layout = SquareChunkLayout::new(UVec2::splat(16));
+    let grid = commands.spawn(QuadGridGeometry::rect_grid(Vec2::splat(16.0))).id();
+    let layout = QuadChunkLayout::new(UVec2::splat(16));
     for (chunk_coord, color) in [
         (IVec2::new(-1, 0), bevy::color::palettes::css::RED),
         (IVec2::new(-1, -1), bevy::color::palettes::css::BLUE),

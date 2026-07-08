@@ -1,12 +1,12 @@
 //! A chunk is a finite region of a grid.
 
-use crate::grid::GridCell;
+use crate::grid::GridCellIndex;
 use crate::region::Region;
 
 /// Partitions a grid's cells into a tiling of chunks.
 pub trait ChunkLayout {
-    type Cell: GridCell;
-    type ChunkCoord: GridCell;
+    type Cell: GridCellIndex;
+    type ChunkCoord: GridCellIndex;
     type ChunkRegion: Region<Cell = Self::Cell>;
 
     /// Which chunk a cell belongs to.
