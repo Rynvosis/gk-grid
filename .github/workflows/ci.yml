@@ -1,0 +1,41 @@
+#file: noinspection SpellCheckingInspection,SpellCheckingInspection,SpellCheckingInspection,SpellCheckingInspection,SpellCheckingInspection,SpellCheckingInspection
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Bevy system libs
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy (bevy)
+        run: cargo clippy --all-targets --features bevy -- -D warnings
+
+      - name: Clippy (core, no default features)
+        run: cargo clippy --all-targets --no-default-features -- -D warnings
+
+      - name: Test (bevy)
+        run: cargo test --features bevy
+
+      - name: Test (core, no default features)
+        run: cargo test --no-default-features
+
+      - name: Build wasm target
+        run: cargo build --no-default-features --target wasm32-unknown-unknown

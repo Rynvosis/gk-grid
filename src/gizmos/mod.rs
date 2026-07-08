@@ -7,6 +7,7 @@ use crate::prelude::*;
 use bevy::prelude::*;
 use std::marker::PhantomData;
 
+#[derive(Debug)]
 pub struct GridGizmoPlugin<S, G>(PhantomData<(S, G)>);
 impl<S, G> Default for GridGizmoPlugin<S, G> {
     fn default() -> Self {

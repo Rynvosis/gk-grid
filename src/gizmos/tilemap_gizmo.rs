@@ -4,7 +4,7 @@ use crate::prelude::{TileStore, TilemapOf};
 use bevy::color::Color;
 use bevy::prelude::*;
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct TilemapGizmo {
     pub color: Color,
 }

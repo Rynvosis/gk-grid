@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 /// Reads tile stores of type `S` from the world.
 #[derive(SystemParam)]
+#[allow(missing_debug_implementations)] // wraps a Query, which isn't Debug
 pub struct Tiles<'w, 's, S: TileStore + Component> {
     stores: Query<'w, 's, &'static S>,
 }

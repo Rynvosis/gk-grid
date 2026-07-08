@@ -4,7 +4,7 @@ use crate::prelude::{TileStore, TilemapOf};
 use bevy::color::Color;
 use bevy::prelude::{Component, Gizmos, Query};
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct TilemapCellGizmos<T: TileStore + Component> {
     pub color_fn: fn(map: &T, cell: &T::Cell) -> Color,
 }

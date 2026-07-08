@@ -5,7 +5,9 @@ use std::collections::HashMap;
 
 /// Per-cell data addressed by cell coordinate, over any backing.
 pub trait TileStore {
+    /// Type used for Grid Coordinates
     type Cell: GridCell;
+    /// Type of Value in the store.
     type Item;
     /// Value at a cell, or None if the store holds nothing there.
     fn get(&self, cell: Self::Cell) -> Option<&Self::Item>;
@@ -17,6 +19,7 @@ pub trait TileStore {
 
 /// Dense storage: one slot per cell, addressed by its region.
 /// Null tiles? Make T an Option.
+#[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct Dense<R, T> {
     region: R,
@@ -49,6 +52,7 @@ impl<R: Region, T> TileStore for Dense<R, T> {
 }
 
 /// Sparse storage: only populated cells, addressed by a hash map.
+#[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct Sparse<C, T> {
     map: HashMap<C, T>,
@@ -92,6 +96,8 @@ impl<C: GridCell, T> TileStore for Sparse<C, T> {
 }
 
 /// Chunked storage: a sparse map of chunks, each an inner store.
+#[derive(Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct Chunked<K: ChunkLayout, S> {
     layout: K,
     chunks: HashMap<K::ChunkCoord, S>,
@@ -122,7 +128,7 @@ impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
     }
 
     fn cells(&self) -> impl Iterator<Item = K::Cell> {
-        // already global, just flatten. ponytail: collects, fine unless chunks explode
+        // already global, just flatten.
         let mut out = Vec::new();
         for store in self.chunks.values() {
             out.extend(store.cells());
@@ -169,7 +175,7 @@ mod tests {
         assert_eq!(map.get(IVec2::ZERO), None);
     }
 
-    // get + cells() agree in global coords; a local/global mixup breaks one of them.
+    // get + cells() agree in global coords; a local/global mix-up breaks one of them.
     #[test]
     fn chunked_round_trips_global_cells() {
         let layout = SquareChunkLayout::new(UVec2::splat(4));
