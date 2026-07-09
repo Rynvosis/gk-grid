@@ -1,6 +1,6 @@
-use glam::IVec2;
 use crate::chunk::ChunkLayout;
-use crate::prelude::{RectRegion, QuadChunkLayout};
+use crate::prelude::{QuadChunkLayout, RectRegion};
+use glam::IVec2;
 
 impl ChunkLayout for QuadChunkLayout {
     type Cell = IVec2;

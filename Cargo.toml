@@ -33,3 +33,7 @@ required-features = ["bevy"]
 [[example]]
 name = "chunked_grid"
 required-features = ["bevy"]
+
+[[example]]
+name = "mesh_grid"
+required-features = ["bevy"]

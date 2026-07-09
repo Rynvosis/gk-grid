@@ -140,8 +140,8 @@ impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::region::RectRegion;
     use crate::quad::QuadChunkLayout;
+    use crate::region::RectRegion;
     use glam::{IVec2, UVec2};
     use std::collections::HashSet;
 

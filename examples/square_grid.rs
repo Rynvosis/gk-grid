@@ -11,7 +11,9 @@ fn main() {
 }
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
-    let grid = commands.spawn(QuadGridGeometry::rect_grid(Vec2::splat(32.0))).id();
+    let grid = commands
+        .spawn(QuadGridGeometry::rect_grid(Vec2::splat(32.0)))
+        .id();
     let region = RectRegion::new(IVec2::splat(-10), UVec2::splat(20));
     commands.spawn((
         Dense::from_region(region, |_| ()),

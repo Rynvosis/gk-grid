@@ -1,6 +1,6 @@
 use crate::grid::geometry::{GridGeometry, PointQuery, TotalGridGeometry};
 use crate::grid::{CellOf, CornerOf};
-use crate::quad::{QuadGrid, ALL_QUAD_CORNERS};
+use crate::quad::{ALL_QUAD_CORNERS, QuadGrid};
 use glam::{Mat2, Vec2};
 
 #[derive(Clone, Debug)]
@@ -22,7 +22,7 @@ impl QuadGridGeometry {
     pub fn rect_grid(cell_size: Vec2) -> Self {
         Self {
             cell_size,
-            projection: Mat2::from_diagonal(cell_size)
+            projection: Mat2::from_diagonal(cell_size),
         }
     }
 
@@ -32,9 +32,9 @@ impl QuadGridGeometry {
         Self {
             cell_size,
             projection: Mat2::from_cols(
-                Vec2::new(cell_size.x/2.0, -cell_size.y/2.0),
-                Vec2::new(-cell_size.x/2.0, -cell_size.y/2.0)
-            )
+                Vec2::new(cell_size.x / 2.0, -cell_size.y / 2.0),
+                Vec2::new(-cell_size.x / 2.0, -cell_size.y / 2.0),
+            ),
         }
     }
 
@@ -44,14 +44,9 @@ impl QuadGridGeometry {
         let y = size / 2.0;
         Self {
             cell_size: Vec2::splat(size),
-            projection: Mat2::from_cols(
-                Vec2::new(x, -y),
-                Vec2::new(-x, -y)
-            )
+            projection: Mat2::from_cols(Vec2::new(x, -y), Vec2::new(-x, -y)),
         }
     }
-
-
 
     /// cavalier oblique: grid-x stays horizontal, grid-y shears up by `angle` at full depth.
     pub fn cavalier(cell_size: Vec2, angle: f32) -> Self {
@@ -60,8 +55,8 @@ impl QuadGridGeometry {
             cell_size,
             projection: Mat2::from_cols(
                 Vec2::new(cell_size.x, 0.0),
-                Vec2::new(cell_size.y * cos, cell_size.y * sin)
-            )
+                Vec2::new(cell_size.y * cos, cell_size.y * sin),
+            ),
         }
     }
 }

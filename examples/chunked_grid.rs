@@ -12,7 +12,9 @@ fn main() {
 }
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
-    let grid = commands.spawn(QuadGridGeometry::rect_grid(Vec2::splat(16.0))).id();
+    let grid = commands
+        .spawn(QuadGridGeometry::rect_grid(Vec2::splat(16.0)))
+        .id();
     let layout = QuadChunkLayout::new(UVec2::splat(16));
     for (chunk_coord, color) in [
         (IVec2::new(-1, 0), bevy::color::palettes::css::RED),
