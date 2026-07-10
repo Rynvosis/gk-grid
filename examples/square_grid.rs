@@ -1,6 +1,5 @@
 use bevy::prelude::*;
-use gk_grid::prelude::tilemap_gizmo::TilemapGizmo;
-use gk_grid::prelude::*;
+use gk_grid::prelude::{tilemap_gizmo::TilemapGizmo, *};
 
 fn main() {
     App::new()
@@ -15,9 +14,7 @@ fn setup(mut commands: Commands) {
     let region = RectRegion::new(IVec2::splat(-10), UVec2::splat(20));
     commands.spawn((
         Dense::from_region(region, |_| ()),
-        TilemapGizmo {
-            color: Color::WHITE,
-        },
+        TilemapGizmo { color: Color::WHITE },
         TilemapOf(grid),
     ));
 }

@@ -1,5 +1,6 @@
-use crate::grid::GridCellIndex;
 use glam::{IVec2, UVec2};
+
+use crate::grid::GridCellIndex;
 
 /// A bounded set of cells.
 pub trait Region {

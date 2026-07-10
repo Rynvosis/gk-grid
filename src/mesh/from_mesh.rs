@@ -1,0 +1,73 @@
+use std::collections::HashMap;
+
+use bevy::mesh::{Mesh, PrimitiveTopology};
+use glam::Vec3;
+
+use crate::mesh::{MeshGrid, geometry::MeshGridGeometry};
+
+impl MeshGrid {
+    /// Builds a mesh grid and its geometry from a Bevy triangle mesh, welding vertices that share a position.
+    ///
+    /// Panics if the mesh is not an indexed `TriangleList`, lacks `Float32x3` positions, or is not manifold.
+    pub fn from_mesh(mesh: &Mesh) -> (MeshGrid, MeshGridGeometry) {
+        assert_eq!(
+            mesh.primitive_topology(),
+            PrimitiveTopology::TriangleList,
+            "from_mesh expects a TriangleList mesh",
+        );
+        let positions = mesh
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|attr| attr.as_float3())
+            .expect("mesh has Float32x3 positions");
+        let indices = mesh.indices().expect("mesh is indexed");
+
+        // Weld vertices that share a position (by exact bits) onto one id, so triangles meeting at a
+        // vertex reference the same id and from_faces can actually detect their shared edges.
+        let mut verts: Vec<Vec3> = Vec::new();
+        let mut ids: HashMap<[u32; 3], usize> = HashMap::new();
+        let mut welded: Vec<usize> = Vec::with_capacity(indices.len());
+        for i in indices.iter() {
+            let p = positions[i];
+            let key = [p[0].to_bits(), p[1].to_bits(), p[2].to_bits()];
+            let id = *ids.entry(key).or_insert_with(|| {
+                verts.push(Vec3::from_array(p));
+                verts.len() - 1
+            });
+            welded.push(id);
+        }
+
+        let faces: Vec<Vec<usize>> = welded.chunks(3).map(|tri| tri.to_vec()).collect();
+        Self::from_faces(faces, verts)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::prelude::*;
+
+    use super::*;
+    use crate::prelude::Grid;
+
+    // A cube duplicates its corner vertices per face; welding must merge them or the faces share no
+    // ids and every edge reads as a boundary. A closed surface has no boundary edges.
+    #[test]
+    fn welds_a_cube_into_a_closed_surface() {
+        let mesh = Mesh::from(Cuboid::default());
+        let num_faces = mesh.indices().unwrap().len() / 3;
+        let (grid, _geometry) = MeshGrid::from_mesh(&mesh);
+        for face in 0..num_faces {
+            assert_eq!(grid.slots(face).count(), grid.neighbours(face).count());
+        }
+    }
+
+    // The icosphere is already welded; from_mesh should keep it a closed surface.
+    #[test]
+    fn icosphere_is_a_closed_surface() {
+        let mesh = Sphere::new(1.0).mesh().ico(0).unwrap();
+        let num_faces = mesh.indices().unwrap().len() / 3;
+        let (grid, _geometry) = MeshGrid::from_mesh(&mesh);
+        for face in 0..num_faces {
+            assert_eq!(grid.slots(face).count(), grid.neighbours(face).count());
+        }
+    }
+}

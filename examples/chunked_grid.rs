@@ -1,6 +1,5 @@
 use bevy::prelude::*;
-use gk_grid::prelude::cell_gizmo::TilemapCellGizmos;
-use gk_grid::prelude::*;
+use gk_grid::prelude::{cell_gizmo::TilemapCellGizmos, *};
 
 type ColorMap = Dense<RectRegion, Color>;
 fn main() {
