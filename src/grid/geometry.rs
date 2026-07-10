@@ -28,6 +28,34 @@ pub trait TotalGridGeometry: GridGeometry {
     }
 }
 
+/// Maps a local-space point to the cells that contain it.
 pub trait PointQuery: GridGeometry {
-    fn local_to_cell(&self, local: Self::Position) -> Option<CellOf<Self::Grid>>;
+    /// Cells whose area contains `local`: empty if none, one for a flat grid,
+    /// several where the geometry folds or self-overlaps.
+    fn cells_at(&self, local: Self::Position) -> impl Iterator<Item = CellOf<Self::Grid>>;
+}
+
+/// A point query whose geometry lands every point in exactly one cell.
+pub trait TotalPointQuery: PointQuery {
+    /// The single cell containing `local`. Only valid where `cells_at` always yields exactly one.
+    fn cell_at(&self, local: Self::Position) -> CellOf<Self::Grid> {
+        self.cells_at(local).next().expect("total point query")
+    }
+}
+
+/// A cell a ray passes through, with the ray parameter `t` at the crossing.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct RayHit<C> {
+    /// The cell the ray entered.
+    pub cell: C,
+    /// Ray parameter at the crossing: the hit point is `origin + t * dir`.
+    pub t: f32,
+}
+
+/// Casts a ray through the grid, yielding the cells it crosses in order.
+pub trait RayCast: GridGeometry {
+    /// The cells the ray `origin + t * dir` passes through, in nondecreasing `t`.
+    /// A cell may recur where the geometry folds. The stream may be infinite, so
+    /// consumers must bound it (for example `take_while` on `t`).
+    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHit<CellOf<Self::Grid>>>;
 }

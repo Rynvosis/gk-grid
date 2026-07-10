@@ -23,7 +23,7 @@ pub mod prelude {
         chunk::ChunkLayout,
         grid::{
             CellOf, CornerOf, Grid, SlotOf, TotalGrid,
-            geometry::{GridGeometry, PointQuery, TotalGridGeometry},
+            geometry::{GridGeometry, PointQuery, RayCast, RayHit, TotalGridGeometry, TotalPointQuery},
             swizzle::GridSwizzle,
         },
         layered::{

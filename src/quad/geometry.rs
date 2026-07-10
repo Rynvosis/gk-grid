@@ -3,7 +3,7 @@ use glam::{Mat2, Vec2, Vec3, Vec3Swizzles};
 use crate::{
     grid::{
         CellOf, CornerOf,
-        geometry::{GridGeometry, PointQuery, TotalGridGeometry},
+        geometry::{GridGeometry, PointQuery, RayCast, RayHit, TotalGridGeometry, TotalPointQuery},
         swizzle::GridSwizzle,
     },
     quad::{ALL_QUAD_CORNERS, QuadGrid},
@@ -104,10 +104,90 @@ impl GridGeometry for QuadGridGeometry {
 impl TotalGridGeometry for QuadGridGeometry {}
 
 impl PointQuery for QuadGridGeometry {
-    fn local_to_cell(&self, local: Self::Position) -> Option<CellOf<Self::Grid>> {
+    fn cells_at(&self, local: Self::Position) -> impl Iterator<Item = CellOf<Self::Grid>> {
         let local = self.swizzle.invert(local).xy();
         let local = self.projection.inverse() * local;
-        Some(local.floor().as_ivec2())
+        std::iter::once(local.floor().as_ivec2())
+    }
+}
+
+impl TotalPointQuery for QuadGridGeometry {}
+
+impl RayCast for QuadGridGeometry {
+    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHit<CellOf<Self::Grid>>> {
+        // Transform ray to grid space
+        let inv = self.projection.inverse();
+        let local_origin = self.swizzle.invert(origin).xy();
+        let local_dir = self.swizzle.invert(dir).xy();
+
+        let grid_origin = inv * local_origin;
+        let grid_dir = inv * local_dir;
+
+        // A ray with no direction has no cells to march.
+        let degenerate = grid_dir.x.abs() < 1e-10 && grid_dir.y.abs() < 1e-10;
+
+        // Starting cell
+        let mut current = grid_origin.floor().as_ivec2();
+
+        // Step directions
+        let step_x = if grid_dir.x > 0.0 { 1 } else { -1 };
+        let step_y = if grid_dir.y > 0.0 { 1 } else { -1 };
+
+        // Calculate t_delta (how far along ray to cross one cell)
+        let t_delta_x = if grid_dir.x.abs() < 1e-10 {
+            f32::INFINITY
+        } else {
+            (1.0 / grid_dir.x).abs()
+        };
+        let t_delta_y = if grid_dir.y.abs() < 1e-10 {
+            f32::INFINITY
+        } else {
+            (1.0 / grid_dir.y).abs()
+        };
+
+        // Calculate t_max (t value to next grid boundary)
+        let mut t_max_x = if grid_dir.x.abs() < 1e-10 {
+            f32::INFINITY
+        } else {
+            let next_boundary = if grid_dir.x > 0.0 {
+                current.x as f32 + 1.0
+            } else {
+                current.x as f32
+            };
+            (next_boundary - grid_origin.x) / grid_dir.x
+        };
+
+        let mut t_max_y = if grid_dir.y.abs() < 1e-10 {
+            f32::INFINITY
+        } else {
+            let next_boundary = if grid_dir.y > 0.0 {
+                current.y as f32 + 1.0
+            } else {
+                current.y as f32
+            };
+            (next_boundary - grid_origin.y) / grid_dir.y
+        };
+        let mut t = 0.0;
+
+        std::iter::from_fn(move || {
+            if degenerate {
+                return None;
+            }
+            let hit = RayHit { cell: current, t };
+
+            // Step to next cell
+            if t_max_x < t_max_y {
+                current.x += step_x;
+                t = t_max_x;
+                t_max_x += t_delta_x;
+            } else {
+                current.y += step_y;
+                t = t_max_y;
+                t_max_y += t_delta_y;
+            }
+
+            Some(hit)
+        })
     }
 }
 
@@ -121,18 +201,15 @@ mod tests {
     fn test_point_near_center_maps_to_cell() {
         let geom = QuadGridGeometry::rect_grid(Vec2::new(1.0, 1.0));
         let cell = IVec2::new(5, 3);
+        assert_eq!(geom.cell_at(geom.cell_center(cell) + Vec3::new(0.3, -0.3, 0.0)), cell);
         assert_eq!(
-            geom.local_to_cell(geom.cell_center(cell) + Vec3::new(0.3, -0.3, 0.0)),
-            Some(cell)
-        );
-        assert_eq!(
-            geom.local_to_cell(geom.cell_center(cell) + Vec3::new(0.6, 0.0, 0.0)),
-            Some(cell + IVec2::X)
+            geom.cell_at(geom.cell_center(cell) + Vec3::new(0.6, 0.0, 0.0)),
+            cell + IVec2::X
         );
     }
 
     #[test]
-    fn local_to_cell_round_trips_with_non_unit_cell_size() {
+    fn cell_at_round_trips_with_non_unit_cell_size() {
         let geom = QuadGridGeometry::rect_grid(Vec2::new(32.0, 16.0));
         for cell in [
             IVec2::new(0, 0),
@@ -140,7 +217,68 @@ mod tests {
             IVec2::new(-2, 7),
             IVec2::new(-4, -6),
         ] {
-            assert_eq!(geom.local_to_cell(geom.cell_center(cell)), Some(cell));
+            assert_eq!(geom.cell_at(geom.cell_center(cell)), cell);
+        }
+    }
+
+    #[test]
+    fn raycast_produces_edge_adjacent_cells_with_monotonic_t() {
+        let geom = QuadGridGeometry::rect_grid(Vec2::new(32.0, 16.0));
+        let dir = Vec3::new(-1.0, -1.0, 0.0);
+        let origin = Vec3::new(48.0, 56.0, 0.0); // Center of cell (1, 3)
+
+        let target_hits: [IVec2; 7] = [
+            IVec2::new(1, 3),
+            IVec2::new(1, 2),
+            IVec2::new(0, 2),
+            IVec2::new(0, 1),
+            IVec2::new(0, 0),
+            IVec2::new(-1, 0),
+            IVec2::new(-1, -1),
+        ];
+        let hits: Vec<_> = geom.raycast(origin, dir).take(target_hits.len() + 1).collect();
+
+        assert_eq!(
+            hits.len(),
+            target_hits.len() + 1,
+            "raycast should produce expected number of hits"
+        );
+
+        let mut prev_t = -f32::INFINITY;
+        for i in 0..target_hits.len() {
+            let hit = hits[i];
+
+            // Check cell matches expected
+            assert_eq!(hit.cell, target_hits[i]);
+
+            // Check t is non-decreasing
+            assert!(
+                hit.t >= prev_t,
+                "t values must be non-decreasing: {} < {}",
+                hit.t,
+                prev_t
+            );
+            prev_t = hit.t;
+
+            // Check consecutive cells are edge-adjacent (differ by 1 in exactly one axis)
+            let next_hit = hits[i + 1];
+            let delta = (next_hit.cell - hit.cell).abs();
+            assert!(
+                (delta.x == 1 && delta.y == 0) || (delta.x == 0 && delta.y == 1),
+                "consecutive cells must be edge-adjacent: {:?} -> {:?}",
+                hit.cell,
+                next_hit.cell
+            );
+
+            // Check that sampling the midpoint between this t and next t lands in the correct cell
+            let mid_t = (hit.t + next_hit.t) / 2.0;
+            let sample_point = origin + mid_t * dir;
+            let sampled_cell = geom.cell_at(sample_point);
+            assert_eq!(
+                sampled_cell, hit.cell,
+                "ray sampled at midpoint t={} should land in cell {:?}",
+                mid_t, hit.cell
+            );
         }
     }
 }
