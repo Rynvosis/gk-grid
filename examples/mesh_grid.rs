@@ -2,8 +2,7 @@
 //! Orbit the camera with the arrow keys or WASD.
 
 use bevy::prelude::*;
-use gk_grid::prelude::tilemap_gizmo::TilemapGizmo;
-use gk_grid::prelude::*;
+use gk_grid::prelude::{tilemap_gizmo::TilemapGizmo, *};
 
 // Shared between the rendered sphere and the grid build, so the wireframe lands on the surface.
 const RADIUS: f32 = 1.0;
@@ -43,11 +42,7 @@ impl Extrude<usize, Vec3> for ShellExtrude {
     }
 }
 
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     let sphere = meshes.add(Sphere::new(RADIUS).mesh().ico(SUBDIVISIONS).unwrap());
     commands.spawn((
         Mesh3d(sphere.clone()),
@@ -87,20 +82,10 @@ fn setup(
     // A dense tilemap over every face on every layer, so the gizmo draws the whole stack.
     let map = Dense::from_region(LayeredRegion::new(base_region, 0..LAYERS), |_| ());
     let grid_entity = commands.spawn((grid, geometry)).id();
-    commands.spawn((
-        map,
-        TilemapGizmo {
-            color: Color::WHITE,
-        },
-        TilemapOf(grid_entity),
-    ));
+    commands.spawn((map, TilemapGizmo { color: Color::WHITE }, TilemapOf(grid_entity)));
 }
 
-fn orbit_camera(
-    keys: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
-    mut camera: Query<(&mut Orbit, &mut Transform)>,
-) {
+fn orbit_camera(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut camera: Query<(&mut Orbit, &mut Transform)>) {
     let Ok((mut orbit, mut transform)) = camera.single_mut() else {
         return;
     };

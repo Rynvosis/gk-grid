@@ -1,7 +1,10 @@
-use crate::grid::{CellOf, CornerOf};
-use crate::mesh::MeshGrid;
-use crate::prelude::GridGeometry;
 use glam::Vec3;
+
+use crate::{
+    grid::{CellOf, CornerOf},
+    mesh::MeshGrid,
+    prelude::GridGeometry,
+};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
@@ -21,9 +24,7 @@ impl GridGeometry for MeshGridGeometry {
 
     fn try_cell_center(&self, cell: impl Into<CellOf<Self::Grid>>) -> Option<Self::Position> {
         self.try_cell_corners(cell).and_then(|iter| {
-            let (sum, n) = iter.fold((Vec3::ZERO, 0), |(sum, n), (_, vertex)| {
-                (sum + vertex, n + 1)
-            });
+            let (sum, n) = iter.fold((Vec3::ZERO, 0), |(sum, n), (_, vertex)| (sum + vertex, n + 1));
             (n > 0).then(|| sum / n as f32)
         })
     }
@@ -53,10 +54,7 @@ mod tests {
         ];
         let geometry = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
         assert_eq!(
-            geometry
-                .try_cell_corners(0usize)
-                .unwrap()
-                .collect::<Vec<_>>(),
+            geometry.try_cell_corners(0usize).unwrap().collect::<Vec<_>>(),
             vec![
                 (0, Vec3::new(0.0, 0.0, 0.0)),
                 (1, Vec3::new(2.0, 0.0, 0.0)),
@@ -74,10 +72,7 @@ mod tests {
             Vec3::new(0.0, 3.0, 0.0),
         ];
         let geometry = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
-        assert_eq!(
-            geometry.try_cell_center(0usize),
-            Some(Vec3::new(1.0, 1.0, 0.0))
-        );
+        assert_eq!(geometry.try_cell_center(0usize), Some(Vec3::new(1.0, 1.0, 0.0)));
         assert!(geometry.try_cell_center(9usize).is_none());
     }
 }

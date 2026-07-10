@@ -1,8 +1,9 @@
-use crate::mesh::MeshGrid;
-use crate::mesh::geometry::MeshGridGeometry;
+use std::collections::HashMap;
+
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use glam::Vec3;
-use std::collections::HashMap;
+
+use crate::mesh::{MeshGrid, geometry::MeshGridGeometry};
 
 impl MeshGrid {
     /// Builds a mesh grid and its geometry from a Bevy triangle mesh, welding vertices that share a position.
@@ -42,9 +43,10 @@ impl MeshGrid {
 
 #[cfg(test)]
 mod tests {
+    use bevy::prelude::*;
+
     use super::*;
     use crate::prelude::Grid;
-    use bevy::prelude::*;
 
     // A cube duplicates its corner vertices per face; welding must merge them or the faces share no
     // ids and every edge reads as a boundary. A closed surface has no boundary edges.

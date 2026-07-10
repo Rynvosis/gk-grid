@@ -2,12 +2,11 @@
 mod from_mesh;
 pub(crate) mod geometry;
 
-use crate::mesh::geometry::MeshGridGeometry;
-use crate::prelude::Grid;
-use crate::region::Region;
+use std::collections::{HashMap, HashSet, hash_map::Entry};
+
 use glam::Vec3;
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+
+use crate::{mesh::geometry::MeshGridGeometry, prelude::Grid, region::Region};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
@@ -25,8 +24,7 @@ impl MeshGrid {
 
     /// Derives face-to-face adjacency by matching edges shared between faces.
     fn adjacency_from_faces(faces: &[Vec<usize>]) -> Vec<Vec<Option<usize>>> {
-        let mut adjacency: Vec<Vec<Option<usize>>> =
-            faces.iter().map(|f| vec![None; f.len()]).collect();
+        let mut adjacency: Vec<Vec<Option<usize>>> = faces.iter().map(|f| vec![None; f.len()]).collect();
         let mut edge_map: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
         let mut closed_edges: HashSet<(usize, usize)> = HashSet::new();
 
@@ -36,10 +34,7 @@ impl MeshGrid {
                 match edge_map.entry(edge) {
                     Entry::Vacant(e) => {
                         if closed_edges.contains(&edge) {
-                            panic!(
-                                "Non-manifold mesh: 3rd vertex pair detected for edge {:?}",
-                                edge
-                            );
+                            panic!("Non-manifold mesh: 3rd vertex pair detected for edge {:?}", edge);
                         }
                         e.insert((face_idx, i));
                     }
@@ -76,18 +71,11 @@ impl Grid for MeshGrid {
             .flatten()
     }
 
-    fn try_neighbour(
-        &self,
-        cell: impl Into<Self::Cell>,
-        direction: impl Into<Self::Slot>,
-    ) -> Option<Self::Cell> {
+    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
         *self.adjacency.get(cell.into())?.get(direction.into())?
     }
 
-    fn neighbours(
-        &self,
-        cell: impl Into<Self::Cell>,
-    ) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
+    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
         self.adjacency
             .get(cell.into())
             .map(|adj| {
@@ -169,10 +157,7 @@ mod tests {
     #[test]
     fn neighbours_yield_only_present_edges_in_slot_order() {
         let grid = strip();
-        assert_eq!(
-            grid.neighbours(1usize).collect::<Vec<_>>(),
-            vec![(0, 0), (1, 2)]
-        );
+        assert_eq!(grid.neighbours(1usize).collect::<Vec<_>>(), vec![(0, 0), (1, 2)]);
         assert_eq!(grid.neighbours(0usize).collect::<Vec<_>>(), vec![(0, 1)]);
     }
 

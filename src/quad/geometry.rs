@@ -1,8 +1,13 @@
-use crate::grid::geometry::{GridGeometry, PointQuery, TotalGridGeometry};
-use crate::grid::swizzle::GridSwizzle;
-use crate::grid::{CellOf, CornerOf};
-use crate::quad::{ALL_QUAD_CORNERS, QuadGrid};
 use glam::{Mat2, Vec2, Vec3, Vec3Swizzles};
+
+use crate::{
+    grid::{
+        CellOf, CornerOf,
+        geometry::{GridGeometry, PointQuery, TotalGridGeometry},
+        swizzle::GridSwizzle,
+    },
+    quad::{ALL_QUAD_CORNERS, QuadGrid},
+};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
@@ -56,10 +61,7 @@ impl QuadGridGeometry {
     pub fn isometric(size: f32) -> Self {
         let x = size * 3.0_f32.sqrt() / 2.0;
         let y = size / 2.0;
-        Self::from_projection(
-            Vec2::splat(size),
-            Mat2::from_cols(Vec2::new(x, -y), Vec2::new(-x, -y)),
-        )
+        Self::from_projection(Vec2::splat(size), Mat2::from_cols(Vec2::new(x, -y), Vec2::new(-x, -y)))
     }
 
     /// cavalier oblique: grid-x stays horizontal, grid-y shears up by `angle` at full depth.
@@ -111,8 +113,9 @@ impl PointQuery for QuadGridGeometry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use glam::IVec2;
+
+    use super::*;
 
     #[test]
     fn test_point_near_center_maps_to_cell() {

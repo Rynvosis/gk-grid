@@ -1,6 +1,6 @@
-use crate::chunk::ChunkLayout;
-use crate::prelude::RectRegion;
 use glam::{IVec2, UVec2};
+
+use crate::{chunk::ChunkLayout, prelude::RectRegion};
 
 /// Uniform quad chunking: chunks of `size` cells, phase-shifted by `align`.
 #[derive(Clone, Copy, Debug)]
@@ -85,10 +85,7 @@ mod tests {
         assert_eq!(layout.local_of(IVec2::splat(8)), IVec2::ZERO);
         assert_eq!(layout.chunk_of(IVec2::splat(7)), IVec2::splat(-1));
         let cell = IVec2::new(3, 20);
-        assert_eq!(
-            layout.cell_at(layout.chunk_of(cell), layout.local_of(cell)),
-            cell
-        );
+        assert_eq!(layout.cell_at(layout.chunk_of(cell), layout.local_of(cell)), cell);
     }
 
     #[test]

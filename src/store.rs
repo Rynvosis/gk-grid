@@ -1,7 +1,6 @@
-use crate::chunk::ChunkLayout;
-use crate::grid::GridCellIndex;
-use crate::region::Region;
 use std::collections::HashMap;
+
+use crate::{chunk::ChunkLayout, grid::GridCellIndex, region::Region};
 
 /// Per-cell data addressed by cell coordinate, over any backing.
 pub trait TileStore {
@@ -67,9 +66,7 @@ impl<C: GridCellIndex, T> Default for Sparse<C, T> {
 impl<C: GridCellIndex, T> Sparse<C, T> {
     /// An empty sparse store.
     pub fn new() -> Self {
-        Sparse {
-            map: HashMap::new(),
-        }
+        Sparse { map: HashMap::new() }
     }
 
     /// Sets the value at a cell, returning the previous one.
@@ -122,9 +119,7 @@ impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
     }
 
     fn get_mut(&mut self, cell: K::Cell) -> Option<&mut S::Item> {
-        self.chunks
-            .get_mut(&self.layout.chunk_of(cell))?
-            .get_mut(cell)
+        self.chunks.get_mut(&self.layout.chunk_of(cell))?.get_mut(cell)
     }
 
     fn cells(&self) -> impl Iterator<Item = K::Cell> {
@@ -139,11 +134,12 @@ impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::quad::QuadChunkLayout;
-    use crate::region::RectRegion;
-    use glam::{IVec2, UVec2};
     use std::collections::HashSet;
+
+    use glam::{IVec2, UVec2};
+
+    use super::*;
+    use crate::{quad::QuadChunkLayout, region::RectRegion};
 
     // fill runs per cell, every cell reads back (storing coords catches x/y swaps),
     // oob is None, then get_mut writes one and leaves the rest.

@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::{fmt::Debug, hash::Hash};
 pub(crate) mod geometry;
 pub(crate) mod swizzle;
 
@@ -26,25 +25,14 @@ pub trait Grid {
 
     /// Attempts to find the neighboring cell in the specified direction.
     /// Warning: None can mean A) Cell not found, B) Slot not valid, C) Slot valid but doesn't have a cell on the other side
-    fn try_neighbour(
-        &self,
-        cell: impl Into<Self::Cell>,
-        direction: impl Into<Self::Slot>,
-    ) -> Option<Self::Cell>;
-    fn neighbours(
-        &self,
-        cell: impl Into<Self::Cell>,
-    ) -> impl Iterator<Item = (Self::Slot, Self::Cell)>;
+    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell>;
+    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)>;
 
     //todo: consider making a better connection return type than Option<Cell> with things like which slot you moved through on the connecting cell
 }
 
 pub trait TotalGrid: Grid {
-    fn neighbour(
-        &self,
-        cell: impl Into<Self::Cell>,
-        direction: impl Into<Self::Slot>,
-    ) -> Self::Cell {
+    fn neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Self::Cell {
         self.try_neighbour(cell, direction).unwrap()
     }
 }

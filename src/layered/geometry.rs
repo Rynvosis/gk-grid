@@ -1,8 +1,10 @@
 //! Geometry for a layered grid: the base geometry with every point lifted to its layer.
 
-use crate::grid::{CellOf, CornerOf};
-use crate::layered::Layered;
-use crate::prelude::GridGeometry;
+use crate::{
+    grid::{CellOf, CornerOf},
+    layered::Layered,
+    prelude::GridGeometry,
+};
 
 /// Maps a base point at layer 0 to where it sits on a target layer.
 /// One lift drives all the geometry: corners and centres are just the base's, lifted.
@@ -48,11 +50,9 @@ where
     ) -> Option<impl Iterator<Item = (CornerOf<Self::Grid>, Self::Position)>> {
         let cell = cell.into();
         let base_corners = self.base.try_cell_corners(cell.cell)?;
-        Some(base_corners.map(move |(corner, base_corner)| {
-            (
-                corner,
-                self.extrude.lift(base_corner, cell.cell, cell.layer),
-            )
-        }))
+        Some(
+            base_corners
+                .map(move |(corner, base_corner)| (corner, self.extrude.lift(base_corner, cell.cell, cell.layer))),
+        )
     }
 }

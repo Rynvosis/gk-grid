@@ -2,9 +2,9 @@
 
 pub(crate) mod geometry;
 
-use crate::grid::Grid;
-use crate::region::Region;
 use std::ops::Range;
+
+use crate::{grid::Grid, region::Region};
 
 /// A base cell plus which layer it sits on.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
@@ -66,11 +66,7 @@ impl<G: Grid> Grid for Layered<G> {
             .chain([LayerSlot::Up, LayerSlot::Down])
     }
 
-    fn try_neighbour(
-        &self,
-        cell: impl Into<Self::Cell>,
-        direction: impl Into<Self::Slot>,
-    ) -> Option<Self::Cell> {
+    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
         let layered_cell: Self::Cell = cell.into();
         let direction: Self::Slot = direction.into();
 
@@ -84,19 +80,11 @@ impl<G: Grid> Grid for Layered<G> {
         }
     }
 
-    fn neighbours(
-        &self,
-        cell: impl Into<Self::Cell>,
-    ) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
+    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
         let layered_cell: Self::Cell = cell.into();
         self.base
             .neighbours(layered_cell.cell)
-            .map(move |(slot, cell)| {
-                (
-                    LayerSlot::Base(slot),
-                    LayeredCell::new(cell, layered_cell.layer),
-                )
-            })
+            .map(move |(slot, cell)| (LayerSlot::Base(slot), LayeredCell::new(cell, layered_cell.layer)))
             .chain([
                 (
                     LayerSlot::Up,
@@ -130,11 +118,9 @@ impl<R: Region> Region for LayeredRegion<R> {
     type Cell = LayeredCell<R::Cell>;
 
     fn iter(&self) -> impl Iterator<Item = Self::Cell> {
-        self.base.iter().flat_map(move |cell| {
-            self.layers
-                .clone()
-                .map(move |layer| LayeredCell::new(cell, layer))
-        })
+        self.base
+            .iter()
+            .flat_map(move |cell| self.layers.clone().map(move |layer| LayeredCell::new(cell, layer)))
     }
 
     fn contains(&self, cell: Self::Cell) -> bool {

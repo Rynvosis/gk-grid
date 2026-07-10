@@ -1,11 +1,10 @@
 pub(crate) mod geometry;
 mod layout;
 
+use glam::{IVec2, Vec2};
 pub use layout::QuadChunkLayout;
 
-use crate::grid::TotalGrid;
-use crate::prelude::*;
-use glam::{IVec2, Vec2};
+use crate::{grid::TotalGrid, prelude::*};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
@@ -19,22 +18,13 @@ impl Grid for QuadGrid {
         ALL_QUAD_DIRS.into_iter()
     }
 
-    fn try_neighbour(
-        &self,
-        cell: impl Into<Self::Cell>,
-        direction: impl Into<Self::Slot>,
-    ) -> Option<Self::Cell> {
+    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
         Some(cell.into() + direction.into().delta())
     }
 
-    fn neighbours(
-        &self,
-        cell: impl Into<Self::Cell>,
-    ) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
+    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
         let cell = cell.into();
-        ALL_QUAD_DIRS
-            .into_iter()
-            .map(move |dir| (dir, cell + dir.delta()))
+        ALL_QUAD_DIRS.into_iter().map(move |dir| (dir, cell + dir.delta()))
     }
 }
 
@@ -57,8 +47,7 @@ impl QuadDirs {
         }
     }
 }
-pub(crate) const ALL_QUAD_DIRS: [QuadDirs; 4] =
-    [QuadDirs::E, QuadDirs::N, QuadDirs::W, QuadDirs::S];
+pub(crate) const ALL_QUAD_DIRS: [QuadDirs; 4] = [QuadDirs::E, QuadDirs::N, QuadDirs::W, QuadDirs::S];
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum QuadCorners {
@@ -77,12 +66,8 @@ impl QuadCorners {
         }
     }
 }
-pub(crate) const ALL_QUAD_CORNERS: [QuadCorners; 4] = [
-    QuadCorners::NE,
-    QuadCorners::NW,
-    QuadCorners::SW,
-    QuadCorners::SE,
-];
+pub(crate) const ALL_QUAD_CORNERS: [QuadCorners; 4] =
+    [QuadCorners::NE, QuadCorners::NW, QuadCorners::SW, QuadCorners::SE];
 
 #[cfg(test)]
 mod tests {
@@ -105,9 +90,6 @@ mod tests {
             grid.slots(cell).collect::<Vec<_>>(),
             vec![QuadDirs::E, QuadDirs::N, QuadDirs::W, QuadDirs::S]
         );
-        assert_eq!(
-            grid.try_neighbour(cell, QuadDirs::S),
-            Some(IVec2::new(2, 2))
-        );
+        assert_eq!(grid.try_neighbour(cell, QuadDirs::S), Some(IVec2::new(2, 2)));
     }
 }

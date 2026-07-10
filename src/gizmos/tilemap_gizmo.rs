@@ -1,8 +1,10 @@
-use crate::gizmos::draw_cell_outline;
-use crate::grid::geometry::GridGeometry;
-use crate::prelude::{Grid, TileStore, TilemapOf};
-use bevy::color::Color;
-use bevy::prelude::*;
+use bevy::{color::Color, prelude::*};
+
+use crate::{
+    gizmos::draw_cell_outline,
+    grid::geometry::GridGeometry,
+    prelude::{Grid, TileStore, TilemapOf},
+};
 
 #[derive(Component, Debug)]
 pub struct TilemapGizmo {
@@ -26,12 +28,7 @@ pub fn draw_tilemap_gizmos<S, G>(
             let Some(corners) = grid.try_cell_corners(cell) else {
                 continue;
             };
-            draw_cell_outline(
-                &mut gizmos,
-                transform,
-                corners.map(|(_, local)| local),
-                gizmo.color,
-            );
+            draw_cell_outline(&mut gizmos, transform, corners.map(|(_, local)| local), gizmo.color);
         }
     }
 }

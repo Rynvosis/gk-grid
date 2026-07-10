@@ -1,6 +1,6 @@
+use bevy::{ecs::system::SystemParam, prelude::*};
+
 use crate::prelude::*;
-use bevy::ecs::system::SystemParam;
-use bevy::prelude::*;
 
 /// Reads tile stores of type `S` from the world.
 #[derive(SystemParam)]

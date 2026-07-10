@@ -1,8 +1,13 @@
-use crate::gizmos::draw_cell_outline;
-use crate::grid::geometry::GridGeometry;
-use crate::prelude::{Grid, TileStore, TilemapOf};
-use bevy::color::Color;
-use bevy::prelude::{Component, Gizmos, Query, Transform, Vec3};
+use bevy::{
+    color::Color,
+    prelude::{Component, Gizmos, Query, Transform, Vec3},
+};
+
+use crate::{
+    gizmos::draw_cell_outline,
+    grid::geometry::GridGeometry,
+    prelude::{Grid, TileStore, TilemapOf},
+};
 
 #[derive(Component, Debug)]
 pub struct TilemapCellGizmos<T: TileStore + Component> {
