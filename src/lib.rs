@@ -17,6 +17,7 @@ pub mod prelude {
     #[cfg(feature = "bevy")]
     pub use crate::gizmos::{GridGizmoPlugin, cell_gizmo, tilemap_gizmo};
     pub use crate::grid::geometry::{GridGeometry, PointQuery, TotalGridGeometry};
+    pub use crate::grid::swizzle::GridSwizzle;
     pub use crate::grid::{CellOf, CornerOf, Grid, SlotOf, TotalGrid};
     pub use crate::layered::geometry::{Extrude, LayeredGeometry};
     pub use crate::layered::{LayerSlot, Layered, LayeredCell, LayeredRegion};

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 pub(crate) mod geometry;
+pub(crate) mod swizzle;
 
 /// Marker for anything usable as a grid cell coordinate.
 pub trait GridCellIndex: Copy + Eq + Hash + Debug + Send + Sync + 'static {}

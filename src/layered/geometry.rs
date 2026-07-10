@@ -6,6 +6,7 @@ use crate::prelude::GridGeometry;
 
 /// Maps a base point at layer 0 to where it sits on a target layer.
 /// One lift drives all the geometry: corners and centres are just the base's, lifted.
+/// Operates entirely in the base geometry's local space, never world space.
 pub trait Extrude<C, P> {
     /// Lifts a layer-0 point to the given layer, told which base cell it belongs to.
     fn lift(&self, point: P, cell: C, layer: i32) -> P;

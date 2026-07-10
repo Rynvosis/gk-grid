@@ -2,6 +2,9 @@ use crate::grid::{CellOf, CornerOf, Grid};
 
 pub trait GridGeometry {
     type Grid: Grid;
+    /// Local space: relative to the grid entity's own origin, not world space.
+    /// Converting to world space is a `Transform` multiply, done by whatever
+    /// consumer actually needs world coordinates.
     type Position: Copy + Send + Sync + 'static;
 
     fn try_cell_center(&self, cell: impl Into<CellOf<Self::Grid>>) -> Option<Self::Position>;
@@ -26,5 +29,5 @@ pub trait TotalGridGeometry: GridGeometry {
 }
 
 pub trait PointQuery: GridGeometry {
-    fn world_to_cell(&self, world: Self::Position) -> Option<CellOf<Self::Grid>>;
+    fn local_to_cell(&self, local: Self::Position) -> Option<CellOf<Self::Grid>>;
 }
