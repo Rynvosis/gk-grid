@@ -1,31 +1,30 @@
 use std::collections::HashMap;
 
-use crate::{chunk::ChunkLayout, grid::GridCellIndex, region::Region};
+use crate::{chunk::ChunkLayout, grid::GridCell, region::Region};
 
 /// Per-cell data addressed by cell coordinate, over any backing.
 pub trait TileStore {
     /// Type used for Grid Coordinates
-    type Cell: GridCellIndex;
-    /// Type of Value in the store.
-    type Item;
+    type Cell: GridCell;
+    type Tile;
     /// Value at a cell, or None if the store holds nothing there.
-    fn get(&self, cell: Self::Cell) -> Option<&Self::Item>;
+    fn get(&self, cell: Self::Cell) -> Option<&Self::Tile>;
     /// Mutable value at a cell, or None if the store holds nothing there.
-    fn get_mut(&mut self, cell: Self::Cell) -> Option<&mut Self::Item>;
+    fn get_mut(&mut self, cell: Self::Cell) -> Option<&mut Self::Tile>;
     /// Every cell the store holds data for.
     fn cells(&self) -> impl Iterator<Item = Self::Cell>;
 }
 
-/// Dense storage: one slot per cell, addressed by its region.
+/// One slot per cell, addressed by its region.
 /// Null tiles? Make T an Option.
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct Dense<R, T> {
+pub struct DenseTileStore<R, T> {
     region: R,
     tiles: Vec<T>,
 }
 
-impl<R: Region, T> Dense<R, T> {
+impl<R: Region, T> DenseTileStore<R, T> {
     /// Builds full storage over a region, one value per cell from `fill`.
     pub fn from_region(region: R, fill: impl FnMut(R::Cell) -> T) -> Self {
         let tiles = region.iter().map(fill).collect();
@@ -33,9 +32,9 @@ impl<R: Region, T> Dense<R, T> {
     }
 }
 
-impl<R: Region, T> TileStore for Dense<R, T> {
+impl<R: Region, T> TileStore for DenseTileStore<R, T> {
     type Cell = R::Cell;
-    type Item = T;
+    type Tile = T;
 
     fn get(&self, cell: R::Cell) -> Option<&T> {
         self.region.index_of(cell).map(|i| &self.tiles[i])
@@ -50,23 +49,23 @@ impl<R: Region, T> TileStore for Dense<R, T> {
     }
 }
 
-/// Sparse storage: only populated cells, addressed by a hash map.
+/// Only populated cells, addressed by a hash map.
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct Sparse<C, T> {
+pub struct SparseTileStore<C, T> {
     map: HashMap<C, T>,
 }
 
-impl<C: GridCellIndex, T> Default for Sparse<C, T> {
+impl<C: GridCell, T> Default for SparseTileStore<C, T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<C: GridCellIndex, T> Sparse<C, T> {
+impl<C: GridCell, T> SparseTileStore<C, T> {
     /// An empty sparse store.
     pub fn new() -> Self {
-        Sparse { map: HashMap::new() }
+        SparseTileStore { map: HashMap::new() }
     }
 
     /// Sets the value at a cell, returning the previous one.
@@ -75,9 +74,9 @@ impl<C: GridCellIndex, T> Sparse<C, T> {
     }
 }
 
-impl<C: GridCellIndex, T> TileStore for Sparse<C, T> {
+impl<C: GridCell, T> TileStore for SparseTileStore<C, T> {
     type Cell = C;
-    type Item = T;
+    type Tile = T;
 
     fn get(&self, cell: C) -> Option<&T> {
         self.map.get(&cell)
@@ -92,33 +91,33 @@ impl<C: GridCellIndex, T> TileStore for Sparse<C, T> {
     }
 }
 
-/// Chunked storage: a sparse map of chunks, each an inner store.
+/// A sparse map of chunks, each an inner store.
 #[derive(Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct Chunked<K: ChunkLayout, S> {
+pub struct ChunkedTileStore<K: ChunkLayout, S> {
     layout: K,
     chunks: HashMap<K::ChunkCoord, S>,
 }
 
-impl<K: ChunkLayout, S> Chunked<K, S> {
+impl<K: ChunkLayout, S> ChunkedTileStore<K, S> {
     /// An empty chunked store over a chunk layout.
     pub fn new(layout: K) -> Self {
-        Chunked {
+        ChunkedTileStore {
             layout,
             chunks: HashMap::new(),
         }
     }
 }
 
-impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for Chunked<K, S> {
+impl<K: ChunkLayout, S: TileStore<Cell = K::Cell>> TileStore for ChunkedTileStore<K, S> {
     type Cell = K::Cell;
-    type Item = S::Item;
+    type Tile = S::Tile;
 
-    fn get(&self, cell: K::Cell) -> Option<&S::Item> {
+    fn get(&self, cell: K::Cell) -> Option<&S::Tile> {
         self.chunks.get(&self.layout.chunk_of(cell))?.get(cell)
     }
 
-    fn get_mut(&mut self, cell: K::Cell) -> Option<&mut S::Item> {
+    fn get_mut(&mut self, cell: K::Cell) -> Option<&mut S::Tile> {
         self.chunks.get_mut(&self.layout.chunk_of(cell))?.get_mut(cell)
     }
 
@@ -148,7 +147,7 @@ mod tests {
         let region = RectRegion::new(IVec2::new(-3, 2), UVec2::new(5, 4));
         let cells: Vec<_> = region.iter().collect();
         let mut calls = 0usize;
-        let mut map = Dense::from_region(region, |c| {
+        let mut map = DenseTileStore::from_region(region, |c| {
             calls += 1;
             c
         });
@@ -162,10 +161,10 @@ mod tests {
         assert_eq!(map.get(cells[0]), Some(&cells[0]));
     }
 
-    // Sparse holds only inserted cells.
+    // SparseTileStore holds only inserted cells.
     #[test]
     fn sparse_stores_only_inserted_cells() {
-        let mut map = Sparse::new();
+        let mut map = SparseTileStore::new();
         map.insert(IVec2::new(2, 5), 7);
         assert_eq!(map.get(IVec2::new(2, 5)), Some(&7));
         assert_eq!(map.get(IVec2::ZERO), None);
@@ -181,13 +180,13 @@ mod tests {
             let coord = layout.chunk_of(cell);
             chunks
                 .entry(coord)
-                .or_insert_with(|| Dense::from_region(layout.chunk_region(coord), |c| c));
+                .or_insert_with(|| DenseTileStore::from_region(layout.chunk_region(coord), |c| c));
         }
         let expected: HashSet<IVec2> = chunks
             .keys()
             .flat_map(|&coord| layout.chunk_region(coord).iter().collect::<Vec<_>>())
             .collect();
-        let store = Chunked { layout, chunks };
+        let store = ChunkedTileStore { layout, chunks };
         for &cell in &seeds {
             assert_eq!(store.get(cell), Some(&cell));
         }

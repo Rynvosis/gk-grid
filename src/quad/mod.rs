@@ -11,8 +11,8 @@ use crate::{grid::TotalGrid, prelude::*};
 pub struct QuadGrid {}
 impl Grid for QuadGrid {
     type Cell = IVec2;
-    type Corner = QuadCorners;
-    type Slot = QuadDirs;
+    type Corner = QuadCorner;
+    type Slot = QuadDir;
 
     fn slots(&self, _cell: impl Into<Self::Cell>) -> impl Iterator<Item = Self::Slot> {
         ALL_QUAD_DIRS.into_iter()
@@ -31,43 +31,43 @@ impl Grid for QuadGrid {
 impl TotalGrid for QuadGrid {}
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub enum QuadDirs {
+pub enum QuadDir {
     E,
     N,
     W,
     S,
 }
-impl QuadDirs {
+impl QuadDir {
     fn delta(self) -> IVec2 {
         match self {
-            QuadDirs::E => IVec2::new(1, 0),
-            QuadDirs::N => IVec2::new(0, 1),
-            QuadDirs::W => IVec2::new(-1, 0),
-            QuadDirs::S => IVec2::new(0, -1),
+            QuadDir::E => IVec2::new(1, 0),
+            QuadDir::N => IVec2::new(0, 1),
+            QuadDir::W => IVec2::new(-1, 0),
+            QuadDir::S => IVec2::new(0, -1),
         }
     }
 }
-pub(crate) const ALL_QUAD_DIRS: [QuadDirs; 4] = [QuadDirs::E, QuadDirs::N, QuadDirs::W, QuadDirs::S];
+pub(crate) const ALL_QUAD_DIRS: [QuadDir; 4] = [QuadDir::E, QuadDir::N, QuadDir::W, QuadDir::S];
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub enum QuadCorners {
+pub enum QuadCorner {
     NE,
     NW,
     SW,
     SE,
 }
-impl QuadCorners {
+impl QuadCorner {
     fn offset(self) -> Vec2 {
         match self {
-            QuadCorners::NE => Vec2::new(1.0, 1.0),
-            QuadCorners::NW => Vec2::new(0.0, 1.0),
-            QuadCorners::SW => Vec2::new(0.0, 0.0),
-            QuadCorners::SE => Vec2::new(1.0, 0.0),
+            QuadCorner::NE => Vec2::new(1.0, 1.0),
+            QuadCorner::NW => Vec2::new(0.0, 1.0),
+            QuadCorner::SW => Vec2::new(0.0, 0.0),
+            QuadCorner::SE => Vec2::new(1.0, 0.0),
         }
     }
 }
-pub(crate) const ALL_QUAD_CORNERS: [QuadCorners; 4] =
-    [QuadCorners::NE, QuadCorners::NW, QuadCorners::SW, QuadCorners::SE];
+pub(crate) const ALL_QUAD_CORNERS: [QuadCorner; 4] =
+    [QuadCorner::NE, QuadCorner::NW, QuadCorner::SW, QuadCorner::SE];
 
 #[cfg(test)]
 mod tests {
@@ -80,16 +80,16 @@ mod tests {
         assert_eq!(
             grid.neighbours(cell).collect::<Vec<_>>(),
             vec![
-                (QuadDirs::E, IVec2::new(3, 3)),
-                (QuadDirs::N, IVec2::new(2, 4)),
-                (QuadDirs::W, IVec2::new(1, 3)),
-                (QuadDirs::S, IVec2::new(2, 2)),
+                (QuadDir::E, IVec2::new(3, 3)),
+                (QuadDir::N, IVec2::new(2, 4)),
+                (QuadDir::W, IVec2::new(1, 3)),
+                (QuadDir::S, IVec2::new(2, 2)),
             ]
         );
         assert_eq!(
             grid.slots(cell).collect::<Vec<_>>(),
-            vec![QuadDirs::E, QuadDirs::N, QuadDirs::W, QuadDirs::S]
+            vec![QuadDir::E, QuadDir::N, QuadDir::W, QuadDir::S]
         );
-        assert_eq!(grid.try_neighbour(cell, QuadDirs::S), Some(IVec2::new(2, 2)));
+        assert_eq!(grid.try_neighbour(cell, QuadDir::S), Some(IVec2::new(2, 2)));
     }
 }

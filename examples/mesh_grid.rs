@@ -2,7 +2,7 @@
 //! Orbit the camera with the arrow keys or WASD.
 
 use bevy::prelude::*;
-use gk_grid::prelude::{tilemap_gizmo::TilemapGizmo, *};
+use gk_grid::prelude::{tilemap_gizmo::UniformTilemapGizmo, *};
 
 // Shared between the rendered sphere and the grid build, so the wireframe lands on the surface.
 const RADIUS: f32 = 1.0;
@@ -14,8 +14,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(GridGizmoPlugin::<
-            Dense<LayeredRegion<FaceRegion>, ()>,
-            LayeredGeometry<MeshGridGeometry, ShellExtrude>,
+            DenseTileStore<LayeredRegion<FaceRegion>, ()>,
+            RadialLayeredGeometry<MeshGridGeometry>,
         >::default())
         .add_systems(Startup, setup)
         .add_systems(Update, orbit_camera)
@@ -27,19 +27,6 @@ struct Orbit {
     yaw: f32,
     pitch: f32,
     radius: f32,
-}
-
-// Pushes each face out from the sphere centre so higher layers sit further out.
-#[derive(Debug)]
-struct ShellExtrude {
-    thickness: f32,
-}
-
-impl Extrude<usize, Vec3> for ShellExtrude {
-    fn lift(&self, point: Vec3, _cell: usize, layer: i32) -> Vec3 {
-        let radial = point.normalize();
-        point + radial * (layer as f32 * self.thickness)
-    }
 }
 
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
@@ -71,18 +58,13 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     // Build the base grid from the same icosphere the sphere renders, then stack it into layers.
     let (base_grid, base_geometry) = MeshGrid::from_mesh(meshes.get(&sphere).unwrap());
     let base_region = base_grid.faces_region();
-    let grid = Layered::new(base_grid);
-    let geometry = LayeredGeometry::new(
-        base_geometry,
-        ShellExtrude {
-            thickness: SHELL_THICKNESS,
-        },
-    );
+    let grid = LayeredGrid::new(base_grid);
+    let geometry = RadialLayeredGeometry::new(base_geometry, Vec3::ZERO, SHELL_THICKNESS);
 
     // A dense tilemap over every face on every layer, so the gizmo draws the whole stack.
-    let map = Dense::from_region(LayeredRegion::new(base_region, 0..LAYERS), |_| ());
+    let map = DenseTileStore::from_region(LayeredRegion::new(base_region, 0..LAYERS), |_| ());
     let grid_entity = commands.spawn((grid, geometry)).id();
-    commands.spawn((map, TilemapGizmo { color: Color::WHITE }, TilemapOf(grid_entity)));
+    commands.spawn((map, UniformTilemapGizmo { color: Color::WHITE }, TilemapOf(grid_entity)));
 }
 
 fn orbit_camera(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut camera: Query<(&mut Orbit, &mut Transform)>) {

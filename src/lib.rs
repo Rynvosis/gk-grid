@@ -18,21 +18,21 @@ pub mod prelude {
     #[cfg(feature = "bevy")]
     pub use crate::relations::{TilemapOf, Tilemaps};
     #[cfg(feature = "bevy")]
-    pub use crate::tiles::Tiles;
+    pub use crate::tiles::TileReader;
     pub use crate::{
         chunk::ChunkLayout,
         grid::{
             CellOf, CornerOf, Grid, SlotOf, TotalGrid,
-            geometry::{GridGeometry, PointQuery, RayCast, RayHit, TotalGridGeometry, TotalPointQuery},
+            geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, TotalGridGeometry, TotalPointQuery},
             swizzle::GridSwizzle,
         },
         layered::{
-            LayerSlot, Layered, LayeredCell, LayeredRegion,
-            geometry::{Extrude, LayeredGeometry},
+            LayeredCell, LayeredGrid, LayeredRegion, LayeredSlot,
+            geometry::{PlanarLayeredGeometry, RadialLayeredGeometry},
         },
         mesh::{FaceRegion, MeshGrid, geometry::MeshGridGeometry},
-        quad::{QuadChunkLayout, QuadCorners, QuadDirs, QuadGrid, geometry::QuadGridGeometry},
+        quad::{QuadChunkLayout, QuadCorner, QuadDir, QuadGrid, geometry::QuadGridGeometry},
         region::{RectRegion, Region},
-        store::{Chunked, Dense, Sparse, TileStore},
+        store::{ChunkedTileStore, DenseTileStore, SparseTileStore, TileStore},
     };
 }

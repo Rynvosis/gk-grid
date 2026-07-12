@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use gk_grid::prelude::{cell_gizmo::TilemapCellGizmos, *};
+use gk_grid::prelude::{cell_gizmo::TilemapCellColorGizmo, *};
 
-type ColorMap = Dense<RectRegion, Color>;
+type ColorMap = DenseTileStore<RectRegion, Color>;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -11,7 +11,7 @@ fn main() {
 }
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
-    let grid = commands.spawn(QuadGridGeometry::rect_grid(Vec2::splat(16.0))).id();
+    let grid = commands.spawn(QuadGridGeometry::rect(Vec2::splat(16.0))).id();
     let layout = QuadChunkLayout::new(UVec2::splat(16));
     for (chunk_coord, color) in [
         (IVec2::new(-1, 0), bevy::color::palettes::css::RED),
@@ -20,10 +20,10 @@ fn setup(mut commands: Commands) {
         (IVec2::new(0, 0), bevy::color::palettes::css::YELLOW),
     ] {
         commands.spawn((
-            Dense::from_region(layout.chunk_region(chunk_coord), |cell| {
+            DenseTileStore::from_region(layout.chunk_region(chunk_coord), |cell| {
                 Color::Srgba(color * cell_value(cell))
             }),
-            TilemapCellGizmos::<ColorMap> {
+            TilemapCellColorGizmo::<ColorMap> {
                 color_fn: |map, cell| *map.get(*cell).unwrap(),
             },
             TilemapOf(grid),

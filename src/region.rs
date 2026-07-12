@@ -1,10 +1,10 @@
 use glam::{IVec2, UVec2};
 
-use crate::grid::GridCellIndex;
+use crate::grid::GridCell;
 
 /// A bounded set of cells.
 pub trait Region {
-    type Cell: GridCellIndex;
+    type Cell: GridCell;
     /// Iterates every cell in the region.
     fn iter(&self) -> impl Iterator<Item = Self::Cell>;
     fn contains(&self, cell: Self::Cell) -> bool;

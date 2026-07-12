@@ -3,10 +3,10 @@ use glam::{Mat2, Vec2, Vec3, Vec3Swizzles};
 use crate::{
     grid::{
         CellOf, CornerOf,
-        geometry::{GridGeometry, PointQuery, RayCast, RayHit, TotalGridGeometry, TotalPointQuery},
+        geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, TotalGridGeometry, TotalPointQuery},
         swizzle::GridSwizzle,
     },
-    quad::{ALL_QUAD_CORNERS, QuadGrid},
+    quad::{ALL_QUAD_CORNERS, QuadDir, QuadGrid},
 };
 
 #[derive(Clone, Debug)]
@@ -40,8 +40,7 @@ impl QuadGridGeometry {
     }
 
     // constructors
-    /// rectangle grid of cell size
-    pub fn rect_grid(cell_size: Vec2) -> Self {
+    pub fn rect(cell_size: Vec2) -> Self {
         Self::from_projection(cell_size, Mat2::from_diagonal(cell_size))
     }
 
@@ -114,7 +113,7 @@ impl PointQuery for QuadGridGeometry {
 impl TotalPointQuery for QuadGridGeometry {}
 
 impl RayCast for QuadGridGeometry {
-    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHit<CellOf<Self::Grid>>> {
+    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
         // Transform ray to grid space
         let inv = self.projection.inverse();
         let local_origin = self.swizzle.invert(origin).xy();
@@ -168,20 +167,27 @@ impl RayCast for QuadGridGeometry {
             (next_boundary - grid_origin.y) / grid_dir.y
         };
         let mut t = 0.0;
+        let mut entry_face: Option<QuadDir> = None;
 
         std::iter::from_fn(move || {
             if degenerate {
                 return None;
             }
-            let hit = RayHit { cell: current, t };
+            let hit = RayHit {
+                cell: current,
+                t,
+                face: entry_face,
+            };
 
             // Step to next cell
             if t_max_x < t_max_y {
                 current.x += step_x;
+                entry_face = Some(if step_x > 0 { QuadDir::W } else { QuadDir::E });
                 t = t_max_x;
                 t_max_x += t_delta_x;
             } else {
                 current.y += step_y;
+                entry_face = Some(if step_y > 0 { QuadDir::S } else { QuadDir::N });
                 t = t_max_y;
                 t_max_y += t_delta_y;
             }
@@ -196,10 +202,11 @@ mod tests {
     use glam::IVec2;
 
     use super::*;
+    use crate::grid::Grid;
 
     #[test]
     fn test_point_near_center_maps_to_cell() {
-        let geom = QuadGridGeometry::rect_grid(Vec2::new(1.0, 1.0));
+        let geom = QuadGridGeometry::rect(Vec2::new(1.0, 1.0));
         let cell = IVec2::new(5, 3);
         assert_eq!(geom.cell_at(geom.cell_center(cell) + Vec3::new(0.3, -0.3, 0.0)), cell);
         assert_eq!(
@@ -210,7 +217,7 @@ mod tests {
 
     #[test]
     fn cell_at_round_trips_with_non_unit_cell_size() {
-        let geom = QuadGridGeometry::rect_grid(Vec2::new(32.0, 16.0));
+        let geom = QuadGridGeometry::rect(Vec2::new(32.0, 16.0));
         for cell in [
             IVec2::new(0, 0),
             IVec2::new(5, 3),
@@ -221,13 +228,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn raycast_produces_edge_adjacent_cells_with_monotonic_t() {
-        let geom = QuadGridGeometry::rect_grid(Vec2::new(32.0, 16.0));
+    // A diagonal ray from the centre of cell (1,3) on a 32x16 grid, and the cells it
+    // marches through (hand-verified). Shared by the geometric-property tests below.
+    fn diagonal() -> (QuadGridGeometry, Vec3, Vec3, Vec<IVec2>) {
+        let geom = QuadGridGeometry::rect(Vec2::new(32.0, 16.0));
+        let origin = Vec3::new(48.0, 56.0, 0.0);
         let dir = Vec3::new(-1.0, -1.0, 0.0);
-        let origin = Vec3::new(48.0, 56.0, 0.0); // Center of cell (1, 3)
-
-        let target_hits: [IVec2; 7] = [
+        let cells = vec![
             IVec2::new(1, 3),
             IVec2::new(1, 2),
             IVec2::new(0, 2),
@@ -236,48 +243,79 @@ mod tests {
             IVec2::new(-1, 0),
             IVec2::new(-1, -1),
         ];
-        let hits: Vec<_> = geom.raycast(origin, dir).take(target_hits.len() + 1).collect();
+        (geom, origin, dir, cells)
+    }
 
-        assert_eq!(
-            hits.len(),
-            target_hits.len() + 1,
-            "raycast should produce expected number of hits"
-        );
+    #[test]
+    fn raycast_marches_cells_in_ray_order() {
+        let (geom, origin, dir, cells) = diagonal();
+        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        assert_eq!(hits.len(), cells.len() + 1, "unexpected hit count");
+        for (hit, &cell) in hits.iter().zip(&cells) {
+            assert_eq!(hit.cell, cell);
+        }
+    }
 
-        let mut prev_t = -f32::INFINITY;
-        for i in 0..target_hits.len() {
-            let hit = hits[i];
+    #[test]
+    fn raycast_t_is_nondecreasing() {
+        let (geom, origin, dir, cells) = diagonal();
+        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        for w in hits.windows(2) {
+            assert!(w[1].t >= w[0].t, "t must be non-decreasing: {} < {}", w[1].t, w[0].t);
+        }
+    }
 
-            // Check cell matches expected
-            assert_eq!(hit.cell, target_hits[i]);
-
-            // Check t is non-decreasing
-            assert!(
-                hit.t >= prev_t,
-                "t values must be non-decreasing: {} < {}",
-                hit.t,
-                prev_t
-            );
-            prev_t = hit.t;
-
-            // Check consecutive cells are edge-adjacent (differ by 1 in exactly one axis)
-            let next_hit = hits[i + 1];
-            let delta = (next_hit.cell - hit.cell).abs();
+    #[test]
+    fn raycast_consecutive_cells_are_edge_adjacent() {
+        let (geom, origin, dir, cells) = diagonal();
+        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        for w in hits.windows(2) {
+            let delta = (w[1].cell - w[0].cell).abs();
             assert!(
                 (delta.x == 1 && delta.y == 0) || (delta.x == 0 && delta.y == 1),
                 "consecutive cells must be edge-adjacent: {:?} -> {:?}",
-                hit.cell,
-                next_hit.cell
+                w[0].cell,
+                w[1].cell
             );
+        }
+    }
 
-            // Check that sampling the midpoint between this t and next t lands in the correct cell
-            let mid_t = (hit.t + next_hit.t) / 2.0;
-            let sample_point = origin + mid_t * dir;
-            let sampled_cell = geom.cell_at(sample_point);
+    #[test]
+    fn raycast_midpoint_samples_land_in_reported_cell() {
+        let (geom, origin, dir, cells) = diagonal();
+        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        for w in hits.windows(2) {
+            let mid_t = (w[0].t + w[1].t) / 2.0;
+            let sample = origin + mid_t * dir;
             assert_eq!(
-                sampled_cell, hit.cell,
-                "ray sampled at midpoint t={} should land in cell {:?}",
-                mid_t, hit.cell
+                geom.cell_at(sample),
+                w[0].cell,
+                "ray at midpoint t={} should land in cell {:?}",
+                mid_t,
+                w[0].cell
+            );
+        }
+    }
+
+    #[test]
+    fn raycast_entry_face_walks_back_to_previous_cell() {
+        // Opposite-sign direction so the x and y step directions disagree: the case a
+        // same-sign ray can't distinguish, and the one that exercises the y-face branch.
+        let geom = QuadGridGeometry::rect(Vec2::new(32.0, 16.0));
+        let grid = QuadGrid {};
+        let origin = Vec3::new(48.0, 56.0, 0.0);
+        let dir = Vec3::new(1.0, -1.0, 0.0);
+        let hits: Vec<_> = geom.raycast(origin, dir).take(8).collect();
+
+        assert!(hits[0].face.is_none(), "origin cell has no entry face");
+        for w in hits.windows(2) {
+            let (prev, cur) = (w[0], w[1]);
+            assert_eq!(
+                grid.try_neighbour(cur.cell, cur.face.unwrap()),
+                Some(prev.cell),
+                "entry face of {:?} must walk back to {:?}",
+                cur.cell,
+                prev.cell
             );
         }
     }

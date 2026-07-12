@@ -3,22 +3,22 @@ pub(crate) mod geometry;
 pub(crate) mod swizzle;
 
 /// Marker for anything usable as a grid cell coordinate.
-pub trait GridCellIndex: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
-impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridCellIndex for T {}
+pub trait GridCell: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
+impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridCell for T {}
 pub type CellOf<G> = <G as Grid>::Cell;
 
-pub trait GridCellCorner: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
-impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridCellCorner for T {}
+pub trait GridCorner: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
+impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridCorner for T {}
 pub type CornerOf<G> = <G as Grid>::Corner;
 
-pub trait GridConnectionSlot: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
-impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridConnectionSlot for T {}
+pub trait GridSlot: Copy + Eq + Hash + Debug + Send + Sync + 'static {}
+impl<T: Copy + Eq + Hash + Debug + Send + Sync + 'static> GridSlot for T {}
 pub type SlotOf<G> = <G as Grid>::Slot;
 
 pub trait Grid {
-    type Cell: GridCellIndex;
-    type Corner: GridCellCorner;
-    type Slot: GridConnectionSlot;
+    type Cell: GridCell;
+    type Corner: GridCorner;
+    type Slot: GridSlot;
 
     /// The connection slots available at a cell, in winding order.
     fn slots(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = Self::Slot>;
@@ -31,6 +31,7 @@ pub trait Grid {
     //todo: consider making a better connection return type than Option<Cell> with things like which slot you moved through on the connecting cell
 }
 
+/// A grid whose slots always resolve, so its neighbour lookups are infallible.
 pub trait TotalGrid: Grid {
     fn neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Self::Cell {
         self.try_neighbour(cell, direction).unwrap()

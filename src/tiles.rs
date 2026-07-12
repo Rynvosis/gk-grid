@@ -5,13 +5,13 @@ use crate::prelude::*;
 /// Reads tile stores of type `S` from the world.
 #[derive(SystemParam)]
 #[allow(missing_debug_implementations)] // wraps a Query, which isn't Debug
-pub struct Tiles<'w, 's, S: TileStore + Component> {
+pub struct TileReader<'w, 's, S: TileStore + Component> {
     stores: Query<'w, 's, &'static S>,
 }
 
-impl<S: TileStore + Component> Tiles<'_, '_, S> {
+impl<S: TileStore + Component> TileReader<'_, '_, S> {
     /// Value at a cell of one store entity, or None if the entity or cell is missing.
-    pub fn get(&self, map: Entity, cell: S::Cell) -> Option<&S::Item> {
+    pub fn get(&self, map: Entity, cell: S::Cell) -> Option<&S::Tile> {
         self.stores.get(map).ok()?.get(cell)
     }
 }
@@ -20,7 +20,7 @@ impl<S: TileStore + Component> Tiles<'_, '_, S> {
 mod tests {
     use super::*;
 
-    type Map = Dense<RectRegion, i32>;
+    type Map = DenseTileStore<RectRegion, i32>;
 
     #[derive(Resource)]
     struct Target(Entity);
@@ -28,7 +28,7 @@ mod tests {
     #[derive(Resource, Default)]
     struct Seen(Option<i32>);
 
-    fn read_cell(tiles: Tiles<Map>, target: Res<Target>, mut seen: ResMut<Seen>) {
+    fn read_cell(tiles: TileReader<Map>, target: Res<Target>, mut seen: ResMut<Seen>) {
         seen.0 = tiles.get(target.0, IVec2::new(2, 1)).copied();
     }
 
@@ -41,7 +41,7 @@ mod tests {
         let region = RectRegion::new(IVec2::ZERO, UVec2::splat(3));
         let map = app
             .world_mut()
-            .spawn(Dense::from_region(region, |c| c.x * 10 + c.y))
+            .spawn(DenseTileStore::from_region(region, |c| c.x * 10 + c.y))
             .id();
         app.insert_resource(Target(map));
         app.add_systems(Update, read_cell);

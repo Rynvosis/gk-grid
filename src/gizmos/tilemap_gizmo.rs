@@ -7,12 +7,12 @@ use crate::{
 };
 
 #[derive(Component, Debug)]
-pub struct TilemapGizmo {
+pub struct UniformTilemapGizmo {
     pub color: Color,
 }
 
 pub fn draw_tilemap_gizmos<S, G>(
-    tilemaps: Query<(&S, &TilemapGizmo, &TilemapOf)>,
+    tilemaps: Query<(&S, &UniformTilemapGizmo, &TilemapOf)>,
     grids: Query<(&G, Option<&Transform>)>,
     mut gizmos: Gizmos,
 ) where
