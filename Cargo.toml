@@ -37,3 +37,11 @@ required-features = ["bevy"]
 [[example]]
 name = "mesh_grid"
 required-features = ["bevy"]
+
+[[example]]
+name = "raycast"
+required-features = ["bevy"]
+
+[[example]]
+name = "mesh_raycast"
+required-features = ["bevy"]

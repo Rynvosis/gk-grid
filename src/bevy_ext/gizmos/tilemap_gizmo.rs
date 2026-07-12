@@ -1,18 +1,18 @@
 use bevy::{color::Color, prelude::*};
 
 use crate::{
-    gizmos::draw_cell_outline,
+    bevy_ext::gizmos::draw_cell_outline,
     grid::geometry::GridGeometry,
     prelude::{Grid, TileStore, TilemapOf},
 };
 
 #[derive(Component, Debug)]
-pub struct TilemapGizmo {
+pub struct UniformTilemapGizmo {
     pub color: Color,
 }
 
 pub fn draw_tilemap_gizmos<S, G>(
-    tilemaps: Query<(&S, &TilemapGizmo, &TilemapOf)>,
+    tilemaps: Query<(&S, &UniformTilemapGizmo, &TilemapOf)>,
     grids: Query<(&G, Option<&Transform>)>,
     mut gizmos: Gizmos,
 ) where

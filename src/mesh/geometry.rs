@@ -1,7 +1,10 @@
 use glam::Vec3;
 
 use crate::{
-    grid::{CellOf, CornerOf},
+    grid::{
+        CellOf, CornerOf,
+        geometry::{PointQuery, RayCast, RayHit, RayHitOf},
+    },
     mesh::MeshGrid,
     prelude::GridGeometry,
 };
@@ -16,6 +19,21 @@ impl MeshGridGeometry {
     /// Builds mesh geometry from a shared vertex pool and per-face vertex-index lists.
     pub fn new(verts: Vec<Vec3>, faces: Vec<Vec<usize>>) -> Self {
         Self { verts, faces }
+    }
+
+    /// Unit normal of a face, or `None` when its vertices are degenerate (collinear or coincident).
+    fn face_normal(&self, face: &[usize]) -> Option<Vec3> {
+        let raw = (self.verts[face[0]] - self.verts[face[1]]).cross(self.verts[face[2]] - self.verts[face[1]]);
+        (raw.length_squared() >= 1e-12).then(|| raw.normalize())
+    }
+
+    /// Whether an on-plane `point` lies inside `face`, given the face's `normal`.
+    fn face_contains(&self, point: Vec3, face: &[usize], normal: Vec3) -> bool {
+        const EDGE_EPS: f32 = 1e-4;
+        face.iter()
+            .zip(face.iter().cycle().skip(1))
+            // normal is -N of the winding, so an interior point tests <= 0 on every edge.
+            .all(|(&a, &b)| (self.verts[b] - self.verts[a]).cross(point - self.verts[a]).dot(normal) <= EDGE_EPS)
     }
 }
 impl GridGeometry for MeshGridGeometry {
@@ -38,6 +56,48 @@ impl GridGeometry for MeshGridGeometry {
                 .enumerate()
                 .map(|(corner, &vertex)| (corner, self.verts[vertex]))
         })
+    }
+}
+
+impl PointQuery for MeshGridGeometry {
+    fn cells_at(&self, local: Self::Position) -> impl Iterator<Item = CellOf<Self::Grid>> {
+        const ON_PLANE_EPS: f32 = 1e-4;
+        self.faces.iter().enumerate().filter_map(move |(index, face)| {
+            let normal = self.face_normal(face)?;
+            if normal.dot(self.verts[face[0]] - local).abs() > ON_PLANE_EPS {
+                return None;
+            }
+            self.face_contains(local, face, normal).then_some(index)
+        })
+    }
+}
+
+impl RayCast for MeshGridGeometry {
+    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
+        const PARALLEL_EPS: f32 = 1e-6;
+        let mut hits: Vec<RayHitOf<Self::Grid>> = self
+            .faces
+            .iter()
+            .enumerate()
+            .filter_map(|(index, face)| {
+                let normal = self.face_normal(face)?;
+                let denom = normal.dot(dir);
+                if denom.abs() < PARALLEL_EPS {
+                    return None;
+                }
+                let t = normal.dot(self.verts[face[0]] - origin) / denom;
+                if t < 0.0 {
+                    return None;
+                }
+                self.face_contains(origin + t * dir, face, normal).then_some(RayHit {
+                    cell: index,
+                    t,
+                    face: None,
+                })
+            })
+            .collect();
+        hits.sort_by(|a, b| a.t.total_cmp(&b.t));
+        hits.into_iter()
     }
 }
 
@@ -74,5 +134,112 @@ mod tests {
         let geometry = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
         assert_eq!(geometry.try_cell_center(0usize), Some(Vec3::new(1.0, 1.0, 0.0)));
         assert!(geometry.try_cell_center(9usize).is_none());
+    }
+
+    #[test]
+    fn cells_at_finds_the_containing_face_on_a_non_xy_plane() {
+        let verts = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 4.0),
+        ];
+        let geom = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
+
+        let inside = Vec3::new(1.0, 0.0, 1.0);
+        let outside_on_plane = Vec3::new(3.0, 0.0, 3.0);
+        let off_plane = Vec3::new(1.0, 1.0, 1.0);
+        assert_eq!(geom.cells_at(inside).collect::<Vec<_>>(), vec![0]);
+        assert!(geom.cells_at(outside_on_plane).next().is_none());
+        assert!(geom.cells_at(off_plane).next().is_none());
+    }
+
+    fn xy_triangle() -> MeshGridGeometry {
+        let verts = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(0.0, 4.0, 0.0),
+        ];
+        MeshGridGeometry::new(verts, vec![vec![0, 1, 2]])
+    }
+
+    #[test]
+    fn raycast_pierces_a_single_face_reporting_t_and_no_entry_face() {
+        let hits = xy_triangle()
+            .raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            hits,
+            vec![RayHit {
+                cell: 0,
+                t: 5.0,
+                face: None
+            }]
+        );
+    }
+
+    #[test]
+    fn raycast_orders_stacked_faces_nearest_first() {
+        // Far face (z = -3) listed first, near face (z = 0) second: the sort must reorder by t.
+        let verts = vec![
+            Vec3::new(0.0, 0.0, -3.0),
+            Vec3::new(4.0, 0.0, -3.0),
+            Vec3::new(0.0, 4.0, -3.0),
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(0.0, 4.0, 0.0),
+        ];
+        let geom = MeshGridGeometry::new(verts, vec![vec![0, 1, 2], vec![3, 4, 5]]);
+
+        let hits = geom
+            .raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            hits,
+            vec![
+                RayHit {
+                    cell: 1,
+                    t: 5.0,
+                    face: None
+                },
+                RayHit {
+                    cell: 0,
+                    t: 8.0,
+                    face: None
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn raycast_ignores_faces_behind_the_origin() {
+        // Cast away from the face: the intersection sits at negative t.
+        let geom = xy_triangle();
+        assert!(
+            geom.raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, 1.0))
+                .next()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn raycast_through_the_plane_outside_the_polygon_misses() {
+        // Meets the face's plane at (5, 5, 0), outside the triangle.
+        let geom = xy_triangle();
+        assert!(
+            geom.raycast(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
+                .next()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn raycast_parallel_to_a_face_misses() {
+        // Ray lies in the face's plane: no single intersection.
+        let geom = xy_triangle();
+        assert!(
+            geom.raycast(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
+                .next()
+                .is_none()
+        );
     }
 }

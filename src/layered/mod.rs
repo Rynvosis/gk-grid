@@ -30,7 +30,7 @@ impl<C> From<(C, i32)> for LayeredCell<C> {
 
 /// A move through a layered grid: along the base, or up and down a layer.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub enum LayerSlot<S> {
+pub enum LayeredSlot<S> {
     /// A base-grid slot, staying on the same layer.
     Base(S),
     /// One layer up.
@@ -42,28 +42,28 @@ pub enum LayerSlot<S> {
 /// Any base grid stacked into layers. Depth is open-ended here; the region says how many.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct Layered<G> {
+pub struct LayeredGrid<G> {
     base: G,
 }
 
-impl<G> Layered<G> {
+impl<G> LayeredGrid<G> {
     /// Stacks a base grid into layers.
     pub fn new(base: G) -> Self {
         Self { base }
     }
 }
 
-impl<G: Grid> Grid for Layered<G> {
+impl<G: Grid> Grid for LayeredGrid<G> {
     type Cell = LayeredCell<G::Cell>;
     type Corner = G::Corner;
-    type Slot = LayerSlot<G::Slot>;
+    type Slot = LayeredSlot<G::Slot>;
 
     fn slots(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = Self::Slot> {
         let layered_cell: Self::Cell = cell.into();
         self.base
             .slots(layered_cell.cell)
-            .map(LayerSlot::Base)
-            .chain([LayerSlot::Up, LayerSlot::Down])
+            .map(LayeredSlot::Base)
+            .chain([LayeredSlot::Up, LayeredSlot::Down])
     }
 
     fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
@@ -71,12 +71,12 @@ impl<G: Grid> Grid for Layered<G> {
         let direction: Self::Slot = direction.into();
 
         match direction {
-            LayerSlot::Base(slot) => self
+            LayeredSlot::Base(slot) => self
                 .base
                 .try_neighbour(layered_cell.cell, slot)
                 .map(|cell| LayeredCell::new(cell, layered_cell.layer)),
-            LayerSlot::Up => Some(LayeredCell::new(layered_cell.cell, layered_cell.layer + 1)),
-            LayerSlot::Down => Some(LayeredCell::new(layered_cell.cell, layered_cell.layer - 1)),
+            LayeredSlot::Up => Some(LayeredCell::new(layered_cell.cell, layered_cell.layer + 1)),
+            LayeredSlot::Down => Some(LayeredCell::new(layered_cell.cell, layered_cell.layer - 1)),
         }
     }
 
@@ -84,14 +84,14 @@ impl<G: Grid> Grid for Layered<G> {
         let layered_cell: Self::Cell = cell.into();
         self.base
             .neighbours(layered_cell.cell)
-            .map(move |(slot, cell)| (LayerSlot::Base(slot), LayeredCell::new(cell, layered_cell.layer)))
+            .map(move |(slot, cell)| (LayeredSlot::Base(slot), LayeredCell::new(cell, layered_cell.layer)))
             .chain([
                 (
-                    LayerSlot::Up,
+                    LayeredSlot::Up,
                     LayeredCell::new(layered_cell.cell, layered_cell.layer + 1),
                 ),
                 (
-                    LayerSlot::Down,
+                    LayeredSlot::Down,
                     LayeredCell::new(layered_cell.cell, layered_cell.layer - 1),
                 ),
             ])
