@@ -1,18 +1,21 @@
-use bevy::{color::Color, prelude::*};
+use bevy::{
+    color::Color,
+    prelude::{Component, Gizmos, Query, Transform, Vec3},
+};
 
 use crate::{
-    gizmos::draw_cell_outline,
+    bevy_ext::gizmos::draw_cell_outline,
     grid::geometry::GridGeometry,
     prelude::{Grid, TileStore, TilemapOf},
 };
 
 #[derive(Component, Debug)]
-pub struct UniformTilemapGizmo {
-    pub color: Color,
+pub struct TilemapCellColorGizmo<T: TileStore + Component> {
+    pub color_fn: fn(map: &T, cell: &T::Cell) -> Color,
 }
 
-pub fn draw_tilemap_gizmos<S, G>(
-    tilemaps: Query<(&S, &UniformTilemapGizmo, &TilemapOf)>,
+pub fn draw_tilemap_cell_gizmos<S, G>(
+    tilemaps: Query<(&S, &TilemapCellColorGizmo<S>, &TilemapOf)>,
     grids: Query<(&G, Option<&Transform>)>,
     mut gizmos: Gizmos,
 ) where
@@ -28,7 +31,8 @@ pub fn draw_tilemap_gizmos<S, G>(
             let Some(corners) = grid.try_cell_corners(cell) else {
                 continue;
             };
-            draw_cell_outline(&mut gizmos, transform, corners.map(|(_, local)| local), gizmo.color);
+            let color = (gizmo.color_fn)(store, &cell);
+            draw_cell_outline(&mut gizmos, transform, corners.map(|(_, local)| local), color);
         }
     }
 }

@@ -89,8 +89,11 @@ impl RayCast for MeshGridGeometry {
                 if t < 0.0 {
                     return None;
                 }
-                self.face_contains(origin + t * dir, face, normal)
-                    .then_some(RayHit { cell: index, t, face: None })
+                self.face_contains(origin + t * dir, face, normal).then_some(RayHit {
+                    cell: index,
+                    t,
+                    face: None,
+                })
             })
             .collect();
         hits.sort_by(|a, b| a.t.total_cmp(&b.t));
@@ -164,7 +167,14 @@ mod tests {
         let hits = xy_triangle()
             .raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
             .collect::<Vec<_>>();
-        assert_eq!(hits, vec![RayHit { cell: 0, t: 5.0, face: None }]);
+        assert_eq!(
+            hits,
+            vec![RayHit {
+                cell: 0,
+                t: 5.0,
+                face: None
+            }]
+        );
     }
 
     #[test]
@@ -186,8 +196,16 @@ mod tests {
         assert_eq!(
             hits,
             vec![
-                RayHit { cell: 1, t: 5.0, face: None },
-                RayHit { cell: 0, t: 8.0, face: None },
+                RayHit {
+                    cell: 1,
+                    t: 5.0,
+                    face: None
+                },
+                RayHit {
+                    cell: 0,
+                    t: 8.0,
+                    face: None
+                },
             ]
         );
     }
@@ -196,20 +214,32 @@ mod tests {
     fn raycast_ignores_faces_behind_the_origin() {
         // Cast away from the face: the intersection sits at negative t.
         let geom = xy_triangle();
-        assert!(geom.raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, 1.0)).next().is_none());
+        assert!(
+            geom.raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, 1.0))
+                .next()
+                .is_none()
+        );
     }
 
     #[test]
     fn raycast_through_the_plane_outside_the_polygon_misses() {
         // Meets the face's plane at (5, 5, 0), outside the triangle.
         let geom = xy_triangle();
-        assert!(geom.raycast(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, -1.0)).next().is_none());
+        assert!(
+            geom.raycast(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
+                .next()
+                .is_none()
+        );
     }
 
     #[test]
     fn raycast_parallel_to_a_face_misses() {
         // Ray lies in the face's plane: no single intersection.
         let geom = xy_triangle();
-        assert!(geom.raycast(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)).next().is_none());
+        assert!(
+            geom.raycast(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
+                .next()
+                .is_none()
+        );
     }
 }

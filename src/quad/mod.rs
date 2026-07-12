@@ -66,8 +66,7 @@ impl QuadCorner {
         }
     }
 }
-pub(crate) const ALL_QUAD_CORNERS: [QuadCorner; 4] =
-    [QuadCorner::NE, QuadCorner::NW, QuadCorner::SW, QuadCorner::SE];
+pub(crate) const ALL_QUAD_CORNERS: [QuadCorner; 4] = [QuadCorner::NE, QuadCorner::NW, QuadCorner::SW, QuadCorner::SE];
 
 #[cfg(test)]
 mod tests {

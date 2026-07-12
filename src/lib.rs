@@ -1,24 +1,22 @@
-pub mod chunk;
 #[cfg(feature = "bevy")]
-mod gizmos;
+mod bevy_ext;
+pub mod chunk;
 mod grid;
 mod layered;
 mod mesh;
 mod quad;
 mod region;
-#[cfg(feature = "bevy")]
-mod relations;
 mod store;
-#[cfg(feature = "bevy")]
-mod tiles;
 
 pub mod prelude {
     #[cfg(feature = "bevy")]
-    pub use crate::gizmos::{GridGizmoPlugin, cell_gizmo, tilemap_gizmo};
-    #[cfg(feature = "bevy")]
-    pub use crate::relations::{TilemapOf, Tilemaps};
-    #[cfg(feature = "bevy")]
-    pub use crate::tiles::TileReader;
+    pub use crate::bevy_ext::{
+        gizmos::{GridGizmoPlugin, cell_gizmo, draw_cell_outline, tilemap_gizmo},
+        picking::{GridPickingPlugin, PickableCells},
+        relations::{TilemapOf, Tilemaps},
+        tiles::TileReader,
+        world_ray_to_local,
+    };
     pub use crate::{
         chunk::ChunkLayout,
         grid::{

@@ -85,7 +85,11 @@ where
             let cell = base_cell?;
             if !started {
                 started = true;
-                return Some(RayHit { cell: LayeredCell::new(cell, layer), t: 0.0, face: None });
+                return Some(RayHit {
+                    cell: LayeredCell::new(cell, layer),
+                    t: 0.0,
+                    face: None,
+                });
             }
 
             let wall_t = walls.peek().map_or(f32::INFINITY, |hit| hit.t);
@@ -104,8 +108,16 @@ where
                 let t = layer_t;
                 layer_t += layer_t_delta;
                 // Moving up enters the upper cell through its Down cap, and vice versa.
-                let cap = if layer_step > 0 { LayeredSlot::Down } else { LayeredSlot::Up };
-                return Some(RayHit { cell: LayeredCell::new(cell, layer), t, face: Some(cap) });
+                let cap = if layer_step > 0 {
+                    LayeredSlot::Down
+                } else {
+                    LayeredSlot::Up
+                };
+                return Some(RayHit {
+                    cell: LayeredCell::new(cell, layer),
+                    t,
+                    face: Some(cap),
+                });
             }
 
             None
@@ -121,7 +133,9 @@ where
         let normal = self.normal.normalize();
         let layer = (local.dot(normal) / self.spacing).floor() as i32;
         let base_point = local - normal * local.dot(normal);
-        self.base.cells_at(base_point).map(move |cell| LayeredCell::new(cell, layer))
+        self.base
+            .cells_at(base_point)
+            .map(move |cell| LayeredCell::new(cell, layer))
     }
 }
 
@@ -140,7 +154,11 @@ pub struct RadialLayeredGeometry<Geo> {
 impl<Geo> RadialLayeredGeometry<Geo> {
     /// Stacks `base` into shells `thickness` apart, pushing out from `center`.
     pub fn new(base: Geo, center: Vec3, thickness: f32) -> Self {
-        Self { base, center, thickness }
+        Self {
+            base,
+            center,
+            thickness,
+        }
     }
 
     fn lift(&self, point: Vec3, layer: i32) -> Vec3 {
@@ -188,14 +206,23 @@ mod tests {
     #[test]
     fn planar_center_sits_on_the_layer_surface() {
         let geom = planar();
-        assert_eq!(geom.try_cell_center(LayeredCell::new(IVec2::new(0, 0), 0)), Some(Vec3::new(0.5, 0.5, 0.0)));
-        assert_eq!(geom.try_cell_center(LayeredCell::new(IVec2::new(0, 0), 2)), Some(Vec3::new(0.5, 0.5, 2.0)));
+        assert_eq!(
+            geom.try_cell_center(LayeredCell::new(IVec2::new(0, 0), 0)),
+            Some(Vec3::new(0.5, 0.5, 0.0))
+        );
+        assert_eq!(
+            geom.try_cell_center(LayeredCell::new(IVec2::new(0, 0), 2)),
+            Some(Vec3::new(0.5, 0.5, 2.0))
+        );
     }
 
     #[test]
     fn planar_corners_are_the_base_corners_on_one_surface() {
         let geom = planar();
-        let corners: Vec<_> = geom.try_cell_corners(LayeredCell::new(IVec2::new(0, 0), 3)).unwrap().collect();
+        let corners: Vec<_> = geom
+            .try_cell_corners(LayeredCell::new(IVec2::new(0, 0), 3))
+            .unwrap()
+            .collect();
         assert_eq!(corners.len(), 4);
         assert!(corners.iter().all(|(_, p)| p.z == 3.0));
     }
@@ -205,7 +232,10 @@ mod tests {
         let geom = planar();
         let grid = LayeredGrid::new(QuadGrid {});
         // Chosen so wall crossings (x=1 at t=0.7, ...) and cap crossings (z=1 at t=0.45, ...) never coincide.
-        let hits: Vec<_> = geom.raycast(Vec3::new(0.3, 0.5, 0.1), Vec3::new(1.0, 0.0, 2.0)).take(6).collect();
+        let hits: Vec<_> = geom
+            .raycast(Vec3::new(0.3, 0.5, 0.1), Vec3::new(1.0, 0.0, 2.0))
+            .take(6)
+            .collect();
 
         let cells: Vec<_> = hits.iter().map(|h| h.cell).collect();
         assert_eq!(

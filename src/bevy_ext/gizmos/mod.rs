@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use bevy::prelude::*;
 
 use crate::{
-    gizmos::{cell_gizmo::draw_tilemap_cell_gizmos, tilemap_gizmo::draw_tilemap_gizmos},
+    bevy_ext::gizmos::{cell_gizmo::draw_tilemap_cell_gizmos, tilemap_gizmo::draw_tilemap_gizmos},
     prelude::*,
 };
 
@@ -30,7 +30,7 @@ where
 
 /// Draws a closed polyline through `corners` (in the grid's local space),
 /// transformed by `transform` (identity if absent).
-pub(crate) fn draw_cell_outline(
+pub fn draw_cell_outline(
     gizmos: &mut Gizmos,
     transform: Option<&Transform>,
     corners: impl Iterator<Item = Vec3>,

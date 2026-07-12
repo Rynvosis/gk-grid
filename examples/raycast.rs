@@ -120,12 +120,3 @@ fn draw_solid_cells(
         }
     }
 }
-
-/// World-space ray -> the grid's local space, through an optional Transform. (task 0007)
-fn world_ray_to_local(transform: Option<&Transform>, origin: Vec3, dir: Vec3) -> (Vec3, Vec3) {
-    let inverse = transform.unwrap_or(&Transform::IDENTITY).to_matrix().inverse();
-    let new_dir = inverse.transform_vector3(dir).normalize();
-    let new_origin = inverse.transform_point3(origin);
-
-    (new_origin, new_dir)
-}
