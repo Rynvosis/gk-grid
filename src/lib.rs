@@ -1,9 +1,10 @@
 #[cfg(feature = "bevy")]
 mod bevy_ext;
 pub mod chunk;
+mod graph;
 mod grid;
 mod layered;
-mod mesh;
+mod math;
 mod quad;
 mod region;
 mod store;
@@ -19,6 +20,7 @@ pub mod prelude {
     };
     pub use crate::{
         chunk::ChunkLayout,
+        graph::{FaceRegion, GraphGrid, NonManifoldError, geometry::Mesh3DGridGeometry, merge_coplanar},
         grid::{
             CellOf, CornerOf, Grid, SlotOf, TotalGrid,
             geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, TotalGridGeometry, TotalPointQuery},
@@ -28,7 +30,6 @@ pub mod prelude {
             LayeredCell, LayeredGrid, LayeredRegion, LayeredSlot,
             geometry::{PlanarLayeredGeometry, RadialLayeredGeometry},
         },
-        mesh::{FaceRegion, MeshGrid, geometry::MeshGridGeometry},
         quad::{QuadChunkLayout, QuadCorner, QuadDir, QuadGrid, geometry::QuadGridGeometry},
         region::{RectRegion, Region},
         store::{ChunkedTileStore, DenseTileStore, SparseTileStore, TileStore},

@@ -1,30 +1,28 @@
 use glam::Vec3;
 
 use crate::{
+    graph::GraphGrid,
     grid::{
         CellOf, CornerOf,
         geometry::{PointQuery, RayCast, RayHit, RayHitOf},
     },
-    mesh::MeshGrid,
     prelude::GridGeometry,
 };
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct MeshGridGeometry {
+pub struct Mesh3DGridGeometry {
     verts: Vec<Vec3>,
     faces: Vec<Vec<usize>>,
 }
-impl MeshGridGeometry {
+impl Mesh3DGridGeometry {
     /// Builds mesh geometry from a shared vertex pool and per-face vertex-index lists.
     pub fn new(verts: Vec<Vec3>, faces: Vec<Vec<usize>>) -> Self {
         Self { verts, faces }
     }
 
-    /// Unit normal of a face, or `None` when its vertices are degenerate (collinear or coincident).
     fn face_normal(&self, face: &[usize]) -> Option<Vec3> {
-        let raw = (self.verts[face[0]] - self.verts[face[1]]).cross(self.verts[face[2]] - self.verts[face[1]]);
-        (raw.length_squared() >= 1e-12).then(|| raw.normalize())
+        crate::math::face_normal(face, &self.verts)
     }
 
     /// Whether an on-plane `point` lies inside `face`, given the face's `normal`.
@@ -36,8 +34,8 @@ impl MeshGridGeometry {
             .all(|(&a, &b)| (self.verts[b] - self.verts[a]).cross(point - self.verts[a]).dot(normal) <= EDGE_EPS)
     }
 }
-impl GridGeometry for MeshGridGeometry {
-    type Grid = MeshGrid;
+impl GridGeometry for Mesh3DGridGeometry {
+    type Grid = GraphGrid;
     type Position = Vec3;
 
     fn try_cell_center(&self, cell: impl Into<CellOf<Self::Grid>>) -> Option<Self::Position> {
@@ -59,7 +57,7 @@ impl GridGeometry for MeshGridGeometry {
     }
 }
 
-impl PointQuery for MeshGridGeometry {
+impl PointQuery for Mesh3DGridGeometry {
     fn cells_at(&self, local: Self::Position) -> impl Iterator<Item = CellOf<Self::Grid>> {
         const ON_PLANE_EPS: f32 = 1e-4;
         self.faces.iter().enumerate().filter_map(move |(index, face)| {
@@ -72,7 +70,7 @@ impl PointQuery for MeshGridGeometry {
     }
 }
 
-impl RayCast for MeshGridGeometry {
+impl RayCast for Mesh3DGridGeometry {
     fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
         const PARALLEL_EPS: f32 = 1e-6;
         let mut hits: Vec<RayHitOf<Self::Grid>> = self
@@ -112,7 +110,7 @@ mod tests {
             Vec3::new(2.0, 0.0, 0.0),
             Vec3::new(0.0, 2.0, 0.0),
         ];
-        let geometry = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
+        let geometry = Mesh3DGridGeometry::new(verts, vec![vec![0, 1, 2]]);
         assert_eq!(
             geometry.try_cell_corners(0usize).unwrap().collect::<Vec<_>>(),
             vec![
@@ -131,7 +129,7 @@ mod tests {
             Vec3::new(3.0, 0.0, 0.0),
             Vec3::new(0.0, 3.0, 0.0),
         ];
-        let geometry = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
+        let geometry = Mesh3DGridGeometry::new(verts, vec![vec![0, 1, 2]]);
         assert_eq!(geometry.try_cell_center(0usize), Some(Vec3::new(1.0, 1.0, 0.0)));
         assert!(geometry.try_cell_center(9usize).is_none());
     }
@@ -143,7 +141,7 @@ mod tests {
             Vec3::new(4.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 4.0),
         ];
-        let geom = MeshGridGeometry::new(verts, vec![vec![0, 1, 2]]);
+        let geom = Mesh3DGridGeometry::new(verts, vec![vec![0, 1, 2]]);
 
         let inside = Vec3::new(1.0, 0.0, 1.0);
         let outside_on_plane = Vec3::new(3.0, 0.0, 3.0);
@@ -153,13 +151,13 @@ mod tests {
         assert!(geom.cells_at(off_plane).next().is_none());
     }
 
-    fn xy_triangle() -> MeshGridGeometry {
+    fn xy_triangle() -> Mesh3DGridGeometry {
         let verts = vec![
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(4.0, 0.0, 0.0),
             Vec3::new(0.0, 4.0, 0.0),
         ];
-        MeshGridGeometry::new(verts, vec![vec![0, 1, 2]])
+        Mesh3DGridGeometry::new(verts, vec![vec![0, 1, 2]])
     }
 
     #[test]
@@ -188,7 +186,7 @@ mod tests {
             Vec3::new(4.0, 0.0, 0.0),
             Vec3::new(0.0, 4.0, 0.0),
         ];
-        let geom = MeshGridGeometry::new(verts, vec![vec![0, 1, 2], vec![3, 4, 5]]);
+        let geom = Mesh3DGridGeometry::new(verts, vec![vec![0, 1, 2], vec![3, 4, 5]]);
 
         let hits = geom
             .raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))

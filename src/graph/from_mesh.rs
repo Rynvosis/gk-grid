@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use glam::Vec3;
 
-use crate::mesh::{MeshGrid, geometry::MeshGridGeometry};
+use crate::graph::{GraphGrid, NonManifoldError, geometry::Mesh3DGridGeometry};
 
-impl MeshGrid {
+impl GraphGrid {
     /// Builds a mesh grid and its geometry from a Bevy triangle mesh, welding vertices that share a position.
     ///
-    /// Panics if the mesh is not an indexed `TriangleList`, lacks `Float32x3` positions, or is not manifold.
-    pub fn from_mesh(mesh: &Mesh) -> (MeshGrid, MeshGridGeometry) {
+    /// Panics if the mesh is not an indexed `TriangleList` or lacks `Float32x3` positions;
+    /// returns [`NonManifoldError`] if the welded mesh is not edge-manifold.
+    pub fn from_mesh(mesh: &Mesh) -> Result<(GraphGrid, Mesh3DGridGeometry), NonManifoldError> {
         assert_eq!(
             mesh.primitive_topology(),
             PrimitiveTopology::TriangleList,
@@ -54,7 +55,7 @@ mod tests {
     fn welds_a_cube_into_a_closed_surface() {
         let mesh = Mesh::from(Cuboid::default());
         let num_faces = mesh.indices().unwrap().len() / 3;
-        let (grid, _geometry) = MeshGrid::from_mesh(&mesh);
+        let (grid, _geometry) = GraphGrid::from_mesh(&mesh).unwrap();
         for face in 0..num_faces {
             assert_eq!(grid.slots(face).count(), grid.neighbours(face).count());
         }
@@ -65,7 +66,7 @@ mod tests {
     fn icosphere_is_a_closed_surface() {
         let mesh = Sphere::new(1.0).mesh().ico(0).unwrap();
         let num_faces = mesh.indices().unwrap().len() / 3;
-        let (grid, _geometry) = MeshGrid::from_mesh(&mesh);
+        let (grid, _geometry) = GraphGrid::from_mesh(&mesh).unwrap();
         for face in 0..num_faces {
             assert_eq!(grid.slots(face).count(), grid.neighbours(face).count());
         }

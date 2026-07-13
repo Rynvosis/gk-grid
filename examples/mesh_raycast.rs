@@ -14,8 +14,8 @@ type FaceStore = DenseTileStore<FaceRegion, ()>;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(GridGizmoPlugin::<FaceStore, MeshGridGeometry>::default())
-        .add_plugins(GridPickingPlugin::<FaceStore, MeshGridGeometry>::default())
+        .add_plugins(GridGizmoPlugin::<FaceStore, Mesh3DGridGeometry>::default())
+        .add_plugins(GridPickingPlugin::<FaceStore, Mesh3DGridGeometry>::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (orbit_camera, highlight_hovered_face))
         .run();
@@ -55,7 +55,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     ));
 
     // Build the grid from the same icosphere the sphere renders, so the wireframe lands on the surface.
-    let (grid, geometry) = MeshGrid::from_mesh(meshes.get(&sphere).unwrap());
+    let (grid, geometry) = GraphGrid::from_mesh(meshes.get(&sphere).unwrap()).unwrap();
     let region = grid.faces_region();
     let grid_entity = commands.spawn((grid, geometry)).id();
 
@@ -74,7 +74,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
 fn highlight_hovered_face(
     mut gizmos: Gizmos,
     pointers: Query<&PointerInteraction>,
-    grids: Query<(&MeshGridGeometry, Option<&Transform>)>,
+    grids: Query<(&Mesh3DGridGeometry, Option<&Transform>)>,
 ) {
     let Ok((geom, transform)) = grids.single() else {
         return;
@@ -83,7 +83,7 @@ fn highlight_hovered_face(
         // Nearest hit that carries our grid's `RayHit` (skips any other backend's hits).
         let Some(hit) = interaction
             .iter()
-            .find_map(|(_, hit)| hit.extra_as::<RayHitOf<MeshGrid>>())
+            .find_map(|(_, hit)| hit.extra_as::<RayHitOf<GraphGrid>>())
         else {
             continue;
         };

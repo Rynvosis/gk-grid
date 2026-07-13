@@ -15,7 +15,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(GridGizmoPlugin::<
             DenseTileStore<LayeredRegion<FaceRegion>, ()>,
-            RadialLayeredGeometry<MeshGridGeometry>,
+            RadialLayeredGeometry<Mesh3DGridGeometry>,
         >::default())
         .add_systems(Startup, setup)
         .add_systems(Update, orbit_camera)
@@ -56,7 +56,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     ));
 
     // Build the base grid from the same icosphere the sphere renders, then stack it into layers.
-    let (base_grid, base_geometry) = MeshGrid::from_mesh(meshes.get(&sphere).unwrap());
+    let (base_grid, base_geometry) = GraphGrid::from_mesh(meshes.get(&sphere).unwrap()).unwrap();
     let base_region = base_grid.faces_region();
     let grid = LayeredGrid::new(base_grid);
     let geometry = RadialLayeredGeometry::new(base_geometry, Vec3::ZERO, SHELL_THICKNESS);
