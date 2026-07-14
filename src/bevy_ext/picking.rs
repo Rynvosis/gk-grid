@@ -1,5 +1,6 @@
-//! A `bevy_picking` backend that makes grid tilemaps first-class pickable entities and hands the
-//! consumer the cell that was hit (via `HitData`'s `extra` slot), not just the entity.
+//! `bevy_picking` backends that make grid tilemaps first-class pickable entities and hand the
+//! consumer the cell that was hit (via `HitData`'s `extra` slot), not just the entity. Two paths:
+//! `GridPickingPlugin` marches a `RayCast` grid; `SurfacePickingPlugin` pierces a `Surface` grid.
 
 use std::marker::PhantomData;
 
@@ -15,7 +16,7 @@ use bevy::{
 use crate::{
     grid::{
         Grid,
-        geometry::{GridGeometry, RayCast},
+        geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, Surface},
     },
     prelude::{TileStore, TilemapOf},
 };
@@ -34,7 +35,8 @@ impl<S: TileStore + Component> PickableCells<S> {
     }
 }
 
-/// Adds the grid picking backend for tilemaps whose data is `S` and whose grid is drawn by geometry `G`.
+/// Picking backend for tilemaps of `S` drawn by `RayCast` geometry `G`: reports the nearest
+/// pickable cell the ray crosses.
 #[derive(Debug)]
 pub struct GridPickingPlugin<S, G>(PhantomData<(S, G)>);
 
@@ -55,22 +57,81 @@ where
     }
 }
 
-/// Reports the nearest pickable cell under each pointer as a `bevy_picking` hit, carrying the core
-/// `RayHit` as `HitData` extra so an observer can recover it with `hit.extra_as::<RayHitOf<G::Grid>>()`.
-///
-/// Emits exactly ONE hit per tilemap: the hover state (`HoverMap`) keys per entity, so multiple
-/// cells along the ray for the same tilemap would collapse anyway. Whole-column traversal stays an
-/// immediate-mode `raycast` job.
+/// Picking backend for tilemaps of `S` drawn by `Surface` geometry `G`: reports the cell the ray
+/// first touches (pierce, then `cells_at`).
+#[derive(Debug)]
+pub struct SurfacePickingPlugin<S, G>(PhantomData<(S, G)>);
+
+impl<S, G> Default for SurfacePickingPlugin<S, G> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<S, G> Plugin for SurfacePickingPlugin<S, G>
+where
+    S: TileStore + Component,
+    G: Component + GridGeometry<Position = Vec3> + Surface + PointQuery,
+    G::Grid: Grid<Cell = S::Cell>,
+{
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            PreUpdate,
+            surface_picking_backend::<S, G>.in_set(PickingSystems::Backend),
+        );
+    }
+}
+
 #[allow(clippy::type_complexity)]
 pub(crate) fn grid_picking_backend<S, G>(
     ray_map: Res<RayMap>,
     cameras: Query<(&Camera, &Projection, Option<&RenderLayers>)>,
     tilemaps: Query<(Entity, &S, &TilemapOf, &PickableCells<S>, Option<&RenderLayers>)>,
     grids: Query<(&G, Option<&Transform>)>,
-    mut output: MessageWriter<PointerHits>,
+    output: MessageWriter<PointerHits>,
 ) where
     S: TileStore + Component,
     G: Component + GridGeometry<Position = Vec3> + RayCast,
+    G::Grid: Grid<Cell = S::Cell>,
+{
+    run_backend(ray_map, cameras, tilemaps, grids, output, cast_ray_into_tilemap::<S, G>);
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn surface_picking_backend<S, G>(
+    ray_map: Res<RayMap>,
+    cameras: Query<(&Camera, &Projection, Option<&RenderLayers>)>,
+    tilemaps: Query<(Entity, &S, &TilemapOf, &PickableCells<S>, Option<&RenderLayers>)>,
+    grids: Query<(&G, Option<&Transform>)>,
+    output: MessageWriter<PointerHits>,
+) where
+    S: TileStore + Component,
+    G: Component + GridGeometry<Position = Vec3> + Surface + PointQuery,
+    G::Grid: Grid<Cell = S::Cell>,
+{
+    run_backend(
+        ray_map,
+        cameras,
+        tilemaps,
+        grids,
+        output,
+        cast_pierce_into_tilemap::<S, G>,
+    );
+}
+
+/// Emits exactly one `PointerHits` per tilemap: `HoverMap` keys per entity, so multiple cells along
+/// the ray would collapse anyway. Whole-column traversal stays an immediate-mode `raycast` job.
+#[allow(clippy::type_complexity)]
+fn run_backend<S, G>(
+    ray_map: Res<RayMap>,
+    cameras: Query<(&Camera, &Projection, Option<&RenderLayers>)>,
+    tilemaps: Query<(Entity, &S, &TilemapOf, &PickableCells<S>, Option<&RenderLayers>)>,
+    grids: Query<(&G, Option<&Transform>)>,
+    mut output: MessageWriter<PointerHits>,
+    cast: impl Fn(Entity, Ray3d, f32, &G, Option<&Transform>, &S, fn(&S, &S::Cell) -> bool) -> Option<HitData>,
+) where
+    S: TileStore + Component,
+    G: Component + GridGeometry<Position = Vec3>,
     G::Grid: Grid<Cell = S::Cell>,
 {
     for (&ray_id, &ray) in ray_map.iter() {
@@ -92,7 +153,7 @@ pub(crate) fn grid_picking_backend<S, G>(
                 continue;
             };
 
-            if let Some(hit_data) = cast_ray_into_tilemap(
+            if let Some(hit_data) = cast(
                 ray_id.camera,
                 ray,
                 max_distance,
@@ -111,8 +172,21 @@ pub(crate) fn grid_picking_backend<S, G>(
     }
 }
 
-/// Casts a world-space ray into one tilemap's grid and returns the picking hit for the nearest
-/// pickable cell within `max_distance`, with the whole `RayHit` (cell, `t`, face) carried as `HitData` extra.
+/// Maps a world ray into a grid's local space, leaving the direction unnormalized so raycast `t`
+/// is a world distance (unlike the public `world_ray_to_local`, which renormalizes).
+fn local_ray(grid_transform: Option<&Transform>, ray: Ray3d) -> (Vec3, Vec3) {
+    let world_to_local = grid_transform
+        .unwrap_or(&Transform::IDENTITY)
+        .compute_affine()
+        .inverse();
+    (
+        world_to_local.transform_point3(ray.origin),
+        world_to_local.transform_vector3(ray.direction.as_vec3()),
+    )
+}
+
+/// Marches the local ray and returns the nearest pickable cell within `max_distance`, its `RayHit`
+/// (cell, `t`, face) carried as `HitData` extra.
 fn cast_ray_into_tilemap<S, G>(
     camera: Entity,
     ray: Ray3d,
@@ -127,15 +201,7 @@ where
     G: GridGeometry<Position = Vec3> + RayCast,
     G::Grid: Grid<Cell = S::Cell>,
 {
-    let world_to_local = grid_transform
-        .unwrap_or(&Transform::IDENTITY)
-        .compute_affine()
-        .inverse();
-    let local_origin = world_to_local.transform_point3(ray.origin);
-    let local_dir = world_to_local.transform_vector3(ray.direction.as_vec3());
-
-    // The local dir is not renormalized, so raycast `t` is the world distance along the ray, which is
-    // both the `max_distance` bound (the march may be infinite) and the picking depth.
+    let (local_origin, local_dir) = local_ray(grid_transform, ray);
     let hit = geometry
         .raycast(local_origin, local_dir)
         .take_while(|hit| hit.t <= max_distance)
@@ -148,4 +214,32 @@ where
         None,
         hit,
     ))
+}
+
+/// Pierces the local ray and returns the first-touched pickable cell within `max_distance`, a
+/// `RayHit` (cell, `t`, `face: None`) carried as `HitData` extra.
+fn cast_pierce_into_tilemap<S, G>(
+    camera: Entity,
+    ray: Ray3d,
+    max_distance: f32,
+    geometry: &G,
+    grid_transform: Option<&Transform>,
+    store: &S,
+    pickable: fn(&S, &S::Cell) -> bool,
+) -> Option<HitData>
+where
+    S: TileStore,
+    G: GridGeometry<Position = Vec3> + Surface + PointQuery,
+    G::Grid: Grid<Cell = S::Cell>,
+{
+    let (local_origin, local_dir) = local_ray(grid_transform, ray);
+    let (t, point) = geometry.pierce(local_origin, local_dir)?;
+    if t > max_distance {
+        return None;
+    }
+    // First touch only: an unpickable front face hides whatever sits behind it.
+    let cell = geometry.cells_at(point).find(|cell| pickable(store, cell))?;
+
+    let hit: RayHitOf<G::Grid> = RayHit { cell, t, face: None };
+    Some(HitData::new_with_extra(camera, t, Some(ray.get_point(t)), None, hit))
 }

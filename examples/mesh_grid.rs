@@ -7,16 +7,11 @@ use gk_grid::prelude::{tilemap_gizmo::UniformTilemapGizmo, *};
 // Shared between the rendered sphere and the grid build, so the wireframe lands on the surface.
 const RADIUS: f32 = 1.0;
 const SUBDIVISIONS: u32 = 1; // base icosahedron: 20 faces, 12 verts
-const LAYERS: i32 = 3; // three layers so the extruded shells are visible
-const SHELL_THICKNESS: f32 = 0.5; // how far each layer sits above the last
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(GridGizmoPlugin::<
-            DenseTileStore<LayeredRegion<FaceRegion>, ()>,
-            RadialLayeredGeometry<Mesh3DGridGeometry>,
-        >::default())
+        .add_plugins(GridGizmoPlugin::<DenseTileStore<FaceRegion, ()>, Mesh3DGridGeometry>::default())
         .add_systems(Startup, setup)
         .add_systems(Update, orbit_camera)
         .run();
@@ -55,14 +50,12 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
         },
     ));
 
-    // Build the base grid from the same icosphere the sphere renders, then stack it into layers.
-    let (base_grid, base_geometry) = GraphGrid::from_mesh(meshes.get(&sphere).unwrap()).unwrap();
-    let base_region = base_grid.faces_region();
-    let grid = LayeredGrid::new(base_grid);
-    let geometry = RadialLayeredGeometry::new(base_geometry, Vec3::ZERO, SHELL_THICKNESS);
+    // Build the grid from the same icosphere the sphere renders, so the wireframe lands on the surface.
+    let (grid, geometry) = GraphGrid::from_mesh(meshes.get(&sphere).unwrap()).unwrap();
+    let region = grid.faces_region();
 
-    // A dense tilemap over every face on every layer, so the gizmo draws the whole stack.
-    let map = DenseTileStore::from_region(LayeredRegion::new(base_region, 0..LAYERS), |_| ());
+    // A dense tilemap over every face, so the gizmo draws the whole surface.
+    let map = DenseTileStore::from_region(region, |_| ());
     let grid_entity = commands.spawn((grid, geometry)).id();
     commands.spawn((map, UniformTilemapGizmo { color: Color::WHITE }, TilemapOf(grid_entity)));
 }

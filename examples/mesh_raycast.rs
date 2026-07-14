@@ -15,7 +15,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(GridGizmoPlugin::<FaceStore, Mesh3DGridGeometry>::default())
-        .add_plugins(GridPickingPlugin::<FaceStore, Mesh3DGridGeometry>::default())
+        .add_plugins(SurfacePickingPlugin::<FaceStore, Mesh3DGridGeometry>::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (orbit_camera, highlight_hovered_face))
         .run();

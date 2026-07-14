@@ -1,48 +1,47 @@
-//! Geometry for a layered grid: two swappable ways to place stacked surface cells in space.
-//! `PlanarLayeredGeometry` stacks flat layers (and its raycast reports side walls); `RadialLayeredGeometry`
-//! stacks concentric shells. Cells are surfaces, never volumes.
+//! Geometry for a layered grid: one wrapper stacking any [`Layerable`] base into evenly spaced
+//! layers along its normal field. Cells are surfaces, never volumes; a cell sits on its layer
+//! surface and owns the band above it.
 
 use glam::Vec3;
 
 use crate::{
     grid::{
         CellOf, CornerOf,
-        geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, TotalPointQuery},
+        geometry::{GridGeometry, Layerable, PointQuery, RayCast, RayHit, RayHitOf, TotalPointQuery},
     },
     layered::{LayeredCell, LayeredGrid, LayeredSlot},
 };
 
-/// Stacks flat layers along `normal`, evenly spaced by `spacing`. The raycast reports the side
-/// walls the ray crosses within each layer's span (`LayeredSlot::Base`) as well as the caps.
+/// Stacks a [`Layerable`] base into layers `spacing` apart along its normal field.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct PlanarLayeredGeometry<Geo> {
+pub struct LayeredGeometry<Geo> {
     base: Geo,
-    normal: Vec3,
     spacing: f32,
 }
 
-impl<Geo> PlanarLayeredGeometry<Geo> {
-    /// Stacks `base` into flat layers `spacing` apart along `normal`.
-    pub fn new(base: Geo, normal: Vec3, spacing: f32) -> Self {
-        Self { base, normal, spacing }
-    }
-
-    fn lift(&self, point: Vec3, layer: i32) -> Vec3 {
-        point + self.normal.normalize() * (self.spacing * layer as f32)
+impl<Geo> LayeredGeometry<Geo> {
+    /// Stacks `base` into layers `spacing` apart.
+    pub fn new(base: Geo, spacing: f32) -> Self {
+        Self { base, spacing }
     }
 }
 
-impl<Geo> GridGeometry for PlanarLayeredGeometry<Geo>
-where
-    Geo: GridGeometry<Position = Vec3>,
-{
+impl<Geo: Layerable> LayeredGeometry<Geo> {
+    fn layer_of(&self, point: Vec3) -> i32 {
+        // floor, not round: a cell owns the half-open band above its surface.
+        (self.base.height(point) / self.spacing).floor() as i32
+    }
+}
+
+impl<Geo: Layerable> GridGeometry for LayeredGeometry<Geo> {
     type Grid = LayeredGrid<Geo::Grid>;
     type Position = Vec3;
 
     fn try_cell_center(&self, cell: impl Into<CellOf<Self::Grid>>) -> Option<Self::Position> {
         let cell = cell.into();
-        Some(self.lift(self.base.try_cell_center(cell.cell)?, cell.layer))
+        let center = self.base.try_cell_center(cell.cell)?;
+        Some(self.base.lift(center, self.spacing * cell.layer as f32))
     }
 
     fn try_cell_corners(
@@ -50,144 +49,87 @@ where
         cell: impl Into<CellOf<Self::Grid>>,
     ) -> Option<impl Iterator<Item = (CornerOf<Self::Grid>, Self::Position)>> {
         let cell = cell.into();
+        let offset = self.spacing * cell.layer as f32;
         let base_corners = self.base.try_cell_corners(cell.cell)?;
-        Some(base_corners.map(move |(corner, base_corner)| (corner, self.lift(base_corner, cell.layer))))
+        Some(base_corners.map(move |(corner, base_corner)| (corner, self.base.lift(base_corner, offset))))
     }
 }
 
-impl<Geo> RayCast for PlanarLayeredGeometry<Geo>
+impl<Geo> RayCast for LayeredGeometry<Geo>
 where
-    Geo: RayCast + PointQuery + GridGeometry<Position = Vec3>,
+    Geo: Layerable + PointQuery,
 {
     fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
-        let normal = self.normal.normalize();
         let spacing = self.spacing;
-        let rate = dir.dot(normal);
-        let height0 = origin.dot(normal);
-        let mut layer = (height0 / spacing).floor() as i32;
+        let mut layer = self.layer_of(origin);
 
-        // Layer surfaces sit at height = k * spacing; a non-grazing ray crosses them evenly in t.
-        let (layer_step, mut layer_t, layer_t_delta) = if rate.abs() < 1e-10 {
-            (0, f32::INFINITY, f32::INFINITY)
-        } else if rate > 0.0 {
-            (1, ((layer + 1) as f32 * spacing - height0) / rate, spacing / rate.abs())
-        } else {
-            (-1, (layer as f32 * spacing - height0) / rate, spacing / rate.abs())
-        };
-
-        // The base grid marches the lateral cells and hands us each wall face; its first item is the
-        // origin cell, so skip it and seed the starting column from a point query instead.
+        // The base march's first item is the origin cell, so skip it and seed from a point query instead.
         let mut walls = self.base.raycast(origin, dir).skip(1).peekable();
-        let mut base_cell = self.base.cells_at(origin).next();
-        let mut started = false;
+        let mut caps = self.base.layer_crossings(origin, dir, spacing).peekable();
 
-        std::iter::from_fn(move || {
-            let cell = base_cell?;
-            if !started {
-                started = true;
-                return Some(RayHit {
-                    cell: LayeredCell::new(cell, layer),
-                    t: 0.0,
-                    face: None,
-                });
+        // Deliberately every cell containing the origin: folded bases seed multivalued. The lateral
+        // march then resumes from one of them (arbitrary for a folded base); same deferred region fix
+        // as the hole below. Exact for a single-cell base since the first wall overwrites it at once.
+        let seeds: Vec<_> = self.base.cells_at(origin).collect();
+        let mut base_cell = seeds.last().copied();
+        let seed_hits = seeds.into_iter().map(move |cell| RayHit {
+            cell: LayeredCell::new(cell, layer),
+            t: 0.0,
+            face: None,
+        });
+
+        let merged = std::iter::from_fn(move || {
+            loop {
+                let wall_t = walls.peek().map(|h| h.t);
+                let cap_t = caps.peek().map(|&(t, _)| t);
+
+                match (wall_t, cap_t) {
+                    (None, None) => return None,
+                    // Wall next; wins ties so the corner case enters the neighbouring column
+                    // before stepping layers within it.
+                    (Some(wt), ct) if ct.is_none_or(|c| wt <= c) => {
+                        let hit = walls.next().unwrap();
+                        base_cell = Some(hit.cell);
+                        return Some(RayHit {
+                            cell: LayeredCell::new(hit.cell, layer),
+                            t: hit.t,
+                            face: hit.face.map(LayeredSlot::Base),
+                        });
+                    }
+                    _ => {
+                        let (t, step) = caps.next().unwrap();
+                        layer += step;
+                        // Face of the entered cell that was crossed: going up enters through its underside.
+                        let face = if step > 0 { LayeredSlot::Down } else { LayeredSlot::Up };
+                        // Ray hasn't entered the base grid yet: advance the layer, emit nothing. Known
+                        // hole: infinite caps with no base cell would spin here; closed once `raycast`
+                        // takes a region.
+                        let Some(cell) = base_cell else { continue };
+                        return Some(RayHit {
+                            cell: LayeredCell::new(cell, layer),
+                            t,
+                            face: Some(face),
+                        });
+                    }
+                }
             }
+        });
 
-            let wall_t = walls.peek().map_or(f32::INFINITY, |hit| hit.t);
-            if wall_t.is_finite() && wall_t <= layer_t {
-                let hit = walls.next().unwrap();
-                base_cell = Some(hit.cell);
-                return Some(RayHit {
-                    cell: LayeredCell::new(hit.cell, layer),
-                    t: hit.t,
-                    face: hit.face.map(LayeredSlot::Base),
-                });
-            }
-
-            if layer_t.is_finite() {
-                layer += layer_step;
-                let t = layer_t;
-                layer_t += layer_t_delta;
-                // Moving up enters the upper cell through its Down cap, and vice versa.
-                let cap = if layer_step > 0 {
-                    LayeredSlot::Down
-                } else {
-                    LayeredSlot::Up
-                };
-                return Some(RayHit {
-                    cell: LayeredCell::new(cell, layer),
-                    t,
-                    face: Some(cap),
-                });
-            }
-
-            None
-        })
+        seed_hits.chain(merged)
     }
 }
 
-impl<Geo> PointQuery for PlanarLayeredGeometry<Geo>
+impl<Geo> PointQuery for LayeredGeometry<Geo>
 where
-    Geo: PointQuery + GridGeometry<Position = Vec3>,
+    Geo: Layerable + PointQuery,
 {
     fn cells_at(&self, local: Self::Position) -> impl Iterator<Item = CellOf<Self::Grid>> {
-        let normal = self.normal.normalize();
-        let layer = (local.dot(normal) / self.spacing).floor() as i32;
-        let base_point = local - normal * local.dot(normal);
-        self.base
-            .cells_at(base_point)
-            .map(move |cell| LayeredCell::new(cell, layer))
+        let layer = self.layer_of(local);
+        self.base.cells_at(local).map(move |cell| LayeredCell::new(cell, layer))
     }
 }
 
-impl<Geo> TotalPointQuery for PlanarLayeredGeometry<Geo> where Geo: TotalPointQuery + GridGeometry<Position = Vec3> {}
-
-/// Stacks concentric shells around `center`, spaced by `thickness`. Geometry only for now;
-/// the radial raycast (ray-vs-shells) is a future addition.
-#[derive(Clone, Debug)]
-#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
-pub struct RadialLayeredGeometry<Geo> {
-    base: Geo,
-    center: Vec3,
-    thickness: f32,
-}
-
-impl<Geo> RadialLayeredGeometry<Geo> {
-    /// Stacks `base` into shells `thickness` apart, pushing out from `center`.
-    pub fn new(base: Geo, center: Vec3, thickness: f32) -> Self {
-        Self {
-            base,
-            center,
-            thickness,
-        }
-    }
-
-    fn lift(&self, point: Vec3, layer: i32) -> Vec3 {
-        let radial = (point - self.center).normalize();
-        point + radial * (self.thickness * layer as f32)
-    }
-}
-
-impl<Geo> GridGeometry for RadialLayeredGeometry<Geo>
-where
-    Geo: GridGeometry<Position = Vec3>,
-{
-    type Grid = LayeredGrid<Geo::Grid>;
-    type Position = Vec3;
-
-    fn try_cell_center(&self, cell: impl Into<CellOf<Self::Grid>>) -> Option<Self::Position> {
-        let cell = cell.into();
-        Some(self.lift(self.base.try_cell_center(cell.cell)?, cell.layer))
-    }
-
-    fn try_cell_corners(
-        &self,
-        cell: impl Into<CellOf<Self::Grid>>,
-    ) -> Option<impl Iterator<Item = (CornerOf<Self::Grid>, Self::Position)>> {
-        let cell = cell.into();
-        let base_corners = self.base.try_cell_corners(cell.cell)?;
-        Some(base_corners.map(move |(corner, base_corner)| (corner, self.lift(base_corner, cell.layer))))
-    }
-}
+impl<Geo> TotalPointQuery for LayeredGeometry<Geo> where Geo: Layerable + TotalPointQuery {}
 
 #[cfg(test)]
 mod tests {
@@ -199,8 +141,8 @@ mod tests {
         quad::{QuadGrid, geometry::QuadGridGeometry},
     };
 
-    fn planar() -> PlanarLayeredGeometry<QuadGridGeometry> {
-        PlanarLayeredGeometry::new(QuadGridGeometry::rect(Vec2::ONE), Vec3::Z, 1.0)
+    fn planar() -> LayeredGeometry<QuadGridGeometry> {
+        LayeredGeometry::new(QuadGridGeometry::rect(Vec2::ONE), 1.0)
     }
 
     #[test]
@@ -227,6 +169,7 @@ mod tests {
         assert!(corners.iter().all(|(_, p)| p.z == 3.0));
     }
 
+    // The shared-merge regression: walls from the base march interleaved with caps by t.
     #[test]
     fn planar_raycast_reports_walls_and_caps() {
         let geom = planar();
@@ -270,16 +213,5 @@ mod tests {
             geom.cells_at(Vec3::new(1.5, 0.5, 2.5)).collect::<Vec<_>>(),
             vec![LayeredCell::new(IVec2::new(1, 0), 2)]
         );
-    }
-
-    #[test]
-    fn radial_center_pushes_out_by_thickness_per_layer() {
-        let geom = RadialLayeredGeometry::new(QuadGridGeometry::rect(Vec2::ONE), Vec3::ZERO, 1.0);
-        let base = geom.base.try_cell_center(IVec2::new(0, 0)).unwrap();
-        let c0 = geom.try_cell_center(LayeredCell::new(IVec2::new(0, 0), 0)).unwrap();
-        let c1 = geom.try_cell_center(LayeredCell::new(IVec2::new(0, 0), 1)).unwrap();
-
-        assert_eq!(c0, base);
-        assert!((c1.distance(Vec3::ZERO) - c0.distance(Vec3::ZERO) - 1.0).abs() < 1e-5);
     }
 }

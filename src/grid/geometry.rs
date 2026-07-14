@@ -1,3 +1,5 @@
+use glam::Vec3;
+
 use crate::grid::{CellOf, CornerOf, Grid, SlotOf};
 
 pub trait GridGeometry {
@@ -57,10 +59,29 @@ pub struct RayHit<C, S> {
 /// A [`RayHit`] keyed on a grid's cell and slot types.
 pub type RayHitOf<G> = RayHit<CellOf<G>, SlotOf<G>>;
 
-/// Casts a ray through the grid, yielding the cells it crosses in order.
+/// Casts a ray through the grid, marching the cells it sweeps.
 pub trait RayCast: GridGeometry {
-    /// The cells the ray `origin + t * dir` passes through, in nondecreasing `t`.
-    /// A cell may recur where the geometry folds. The stream may be infinite, so
-    /// consumers must bound it (for example `take_while` on `t`).
+    /// The cells the ray `origin + t * dir` sweeps through, in nondecreasing `t`, each
+    /// edge-adjacent to the last with the entry slot in `face` (`None` for the first cell).
+    /// A cell may recur where the geometry folds. The stream may be unbounded, so consumers
+    /// bound it (for example `take_while` on `t`).
     fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>>;
+}
+
+/// A geometry whose cells are 2D patches embedded in 3D space.
+pub trait Surface: GridGeometry<Position = Vec3> {
+    /// Ray parameter and point where the ray first touches the surface, or `None` on a miss.
+    fn pierce(&self, origin: Vec3, dir: Vec3) -> Option<(f32, Vec3)>;
+}
+
+/// A surface whose surroundings split into layers: a normal field with a global height
+/// coordinate, valid within a band.
+pub trait Layerable: Surface + RayCast {
+    /// Moves a point `offset` along the normal field.
+    fn lift(&self, point: Vec3, offset: f32) -> Vec3;
+    /// Signed height of a point above the layer-zero surface.
+    fn height(&self, point: Vec3) -> f32;
+    /// Ray parameters where the ray crosses layer boundaries spaced `spacing` apart, in
+    /// nondecreasing `t`, with `1` entering the layer above and `-1` the layer below.
+    fn layer_crossings(&self, origin: Vec3, dir: Vec3, spacing: f32) -> impl Iterator<Item = (f32, i32)>;
 }

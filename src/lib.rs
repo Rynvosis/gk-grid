@@ -13,7 +13,7 @@ pub mod prelude {
     #[cfg(feature = "bevy")]
     pub use crate::bevy_ext::{
         gizmos::{GridGizmoPlugin, cell_gizmo, draw_cell_outline, tilemap_gizmo},
-        picking::{GridPickingPlugin, PickableCells},
+        picking::{GridPickingPlugin, PickableCells, SurfacePickingPlugin},
         relations::{TilemapOf, Tilemaps},
         tiles::TileReader,
         world_ray_to_local,
@@ -23,13 +23,13 @@ pub mod prelude {
         graph::{FaceRegion, GraphGrid, NonManifoldError, geometry::Mesh3DGridGeometry, merge_coplanar},
         grid::{
             CellOf, CornerOf, Grid, SlotOf, TotalGrid,
-            geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, TotalGridGeometry, TotalPointQuery},
+            geometry::{
+                GridGeometry, Layerable, PointQuery, RayCast, RayHit, RayHitOf, Surface, TotalGridGeometry,
+                TotalPointQuery,
+            },
             swizzle::GridSwizzle,
         },
-        layered::{
-            LayeredCell, LayeredGrid, LayeredRegion, LayeredSlot,
-            geometry::{PlanarLayeredGeometry, RadialLayeredGeometry},
-        },
+        layered::{LayeredCell, LayeredGrid, LayeredRegion, LayeredSlot, geometry::LayeredGeometry},
         quad::{QuadChunkLayout, QuadCorner, QuadDir, QuadGrid, geometry::QuadGridGeometry},
         region::{RectRegion, Region},
         store::{ChunkedTileStore, DenseTileStore, SparseTileStore, TileStore},

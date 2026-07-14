@@ -3,7 +3,9 @@ use glam::{Mat2, Vec2, Vec3, Vec3Swizzles};
 use crate::{
     grid::{
         CellOf, CornerOf,
-        geometry::{GridGeometry, PointQuery, RayCast, RayHit, RayHitOf, TotalGridGeometry, TotalPointQuery},
+        geometry::{
+            GridGeometry, Layerable, PointQuery, RayCast, RayHit, RayHitOf, Surface, TotalGridGeometry, TotalPointQuery,
+        },
         swizzle::GridSwizzle,
     },
     quad::{ALL_QUAD_CORNERS, QuadDir, QuadGrid},
@@ -123,29 +125,27 @@ impl RayCast for QuadGridGeometry {
         let grid_dir = inv * local_dir;
 
         // A ray with no direction has no cells to march.
-        let degenerate = grid_dir.x.abs() < 1e-10 && grid_dir.y.abs() < 1e-10;
+        let degenerate = grid_dir.x.abs() < 1e-6 && grid_dir.y.abs() < 1e-6;
 
-        // Starting cell
         let mut current = grid_origin.floor().as_ivec2();
 
-        // Step directions
         let step_x = if grid_dir.x > 0.0 { 1 } else { -1 };
         let step_y = if grid_dir.y > 0.0 { 1 } else { -1 };
 
-        // Calculate t_delta (how far along ray to cross one cell)
-        let t_delta_x = if grid_dir.x.abs() < 1e-10 {
+        // t to cross one full cell along each axis.
+        let t_delta_x = if grid_dir.x.abs() < 1e-6 {
             f32::INFINITY
         } else {
             (1.0 / grid_dir.x).abs()
         };
-        let t_delta_y = if grid_dir.y.abs() < 1e-10 {
+        let t_delta_y = if grid_dir.y.abs() < 1e-6 {
             f32::INFINITY
         } else {
             (1.0 / grid_dir.y).abs()
         };
 
-        // Calculate t_max (t value to next grid boundary)
-        let mut t_max_x = if grid_dir.x.abs() < 1e-10 {
+        // t to the next grid boundary on each axis.
+        let mut t_max_x = if grid_dir.x.abs() < 1e-6 {
             f32::INFINITY
         } else {
             let next_boundary = if grid_dir.x > 0.0 {
@@ -156,7 +156,7 @@ impl RayCast for QuadGridGeometry {
             (next_boundary - grid_origin.x) / grid_dir.x
         };
 
-        let mut t_max_y = if grid_dir.y.abs() < 1e-10 {
+        let mut t_max_y = if grid_dir.y.abs() < 1e-6 {
             f32::INFINITY
         } else {
             let next_boundary = if grid_dir.y > 0.0 {
@@ -193,6 +193,54 @@ impl RayCast for QuadGridGeometry {
             }
 
             Some(hit)
+        })
+    }
+}
+
+impl Surface for QuadGridGeometry {
+    fn pierce(&self, origin: Vec3, dir: Vec3) -> Option<(f32, Vec3)> {
+        let h0 = self.height(origin);
+        let rate = self.swizzle.invert(dir).z;
+
+        // Parallel to (or lying in) the grid plane
+        if rate.abs() < 1e-6 {
+            return None;
+        }
+
+        let t = -h0 / rate;
+        (t >= 0.0).then(|| (t, origin + t * dir))
+    }
+}
+
+impl Layerable for QuadGridGeometry {
+    fn lift(&self, point: Vec3, offset: f32) -> Vec3 {
+        point + offset * self.swizzle.apply(Vec3::Z)
+    }
+
+    fn height(&self, point: Vec3) -> f32 {
+        self.swizzle.invert(point).z
+    }
+
+    fn layer_crossings(&self, origin: Vec3, dir: Vec3, spacing: f32) -> impl Iterator<Item = (f32, i32)> {
+        let h0 = self.height(origin);
+        let rate = self.swizzle.invert(dir).z;
+
+        // Bands are half-open [k, k+1), so a point on a boundary is inside the upper band: leaving
+        // upward crosses nothing at t = 0 (first boundary strictly above, floor + 1), leaving
+        // downward crosses immediately (boundary at-or-below, plain floor).
+        let first_crossing = if rate > 1e-6 {
+            let k = (h0 / spacing).floor() + 1.0;
+            Some(((k * spacing - h0) / rate, 1))
+        } else if rate < -1e-6 {
+            let k = (h0 / spacing).floor();
+            Some(((k * spacing - h0) / rate, -1))
+        } else {
+            None // In-plane ray never changes layer
+        };
+
+        first_crossing.into_iter().flat_map(move |(t0, step)| {
+            let dt = spacing / rate.abs();
+            (0..).map(move |i| (t0 + i as f32 * dt, step))
         })
     }
 }
@@ -318,5 +366,27 @@ mod tests {
                 prev.cell
             );
         }
+    }
+
+    // Bands are half-open [k, k+1): a point on a boundary is inside the upper band, so descending
+    // leaves through the boundary at t = 0 while ascending crosses nothing until the next one up.
+    #[test]
+    fn layer_crossings_descending_from_a_boundary_crosses_immediately() {
+        let geom = QuadGridGeometry::rect(Vec2::ONE);
+        let crossings: Vec<_> = geom
+            .layer_crossings(Vec3::new(0.5, 0.5, 2.0), Vec3::new(0.0, 0.0, -1.0), 1.0)
+            .take(3)
+            .collect();
+        assert_eq!(crossings, vec![(0.0, -1), (1.0, -1), (2.0, -1)]);
+    }
+
+    #[test]
+    fn layer_crossings_ascending_from_a_boundary_skips_it() {
+        let geom = QuadGridGeometry::rect(Vec2::ONE);
+        let crossings: Vec<_> = geom
+            .layer_crossings(Vec3::new(0.5, 0.5, 2.0), Vec3::new(0.0, 0.0, 1.0), 1.0)
+            .take(2)
+            .collect();
+        assert_eq!(crossings, vec![(1.0, 1), (2.0, 1)]);
     }
 }

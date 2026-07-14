@@ -4,7 +4,7 @@ use crate::{
     graph::GraphGrid,
     grid::{
         CellOf, CornerOf,
-        geometry::{PointQuery, RayCast, RayHit, RayHitOf},
+        geometry::{PointQuery, Surface},
     },
     prelude::GridGeometry,
 };
@@ -27,11 +27,10 @@ impl Mesh3DGridGeometry {
 
     /// Whether an on-plane `point` lies inside `face`, given the face's `normal`.
     fn face_contains(&self, point: Vec3, face: &[usize], normal: Vec3) -> bool {
-        const EDGE_EPS: f32 = 1e-4;
         face.iter()
             .zip(face.iter().cycle().skip(1))
             // normal is -N of the winding, so an interior point tests <= 0 on every edge.
-            .all(|(&a, &b)| (self.verts[b] - self.verts[a]).cross(point - self.verts[a]).dot(normal) <= EDGE_EPS)
+            .all(|(&a, &b)| (self.verts[b] - self.verts[a]).cross(point - self.verts[a]).dot(normal) <= 1e-4)
     }
 }
 impl GridGeometry for Mesh3DGridGeometry {
@@ -59,10 +58,9 @@ impl GridGeometry for Mesh3DGridGeometry {
 
 impl PointQuery for Mesh3DGridGeometry {
     fn cells_at(&self, local: Self::Position) -> impl Iterator<Item = CellOf<Self::Grid>> {
-        const ON_PLANE_EPS: f32 = 1e-4;
         self.faces.iter().enumerate().filter_map(move |(index, face)| {
             let normal = self.face_normal(face)?;
-            if normal.dot(self.verts[face[0]] - local).abs() > ON_PLANE_EPS {
+            if normal.dot(self.verts[face[0]] - local).abs() > 1e-4 {
                 return None;
             }
             self.face_contains(local, face, normal).then_some(index)
@@ -70,32 +68,26 @@ impl PointQuery for Mesh3DGridGeometry {
     }
 }
 
-impl RayCast for Mesh3DGridGeometry {
-    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
-        const PARALLEL_EPS: f32 = 1e-6;
-        let mut hits: Vec<RayHitOf<Self::Grid>> = self
+// A closed mesh has no canonical projection, so it marches no ray: pierce is its only ray query.
+impl Surface for Mesh3DGridGeometry {
+    fn pierce(&self, origin: Vec3, dir: Vec3) -> Option<(f32, Vec3)> {
+        let t = self
             .faces
             .iter()
-            .enumerate()
-            .filter_map(|(index, face)| {
+            .filter_map(|face| {
                 let normal = self.face_normal(face)?;
-                let denom = normal.dot(dir);
-                if denom.abs() < PARALLEL_EPS {
+                let rate = normal.dot(dir);
+                if rate.abs() < 1e-6 {
                     return None;
                 }
-                let t = normal.dot(self.verts[face[0]] - origin) / denom;
+                let t = normal.dot(self.verts[face[0]] - origin) / rate;
                 if t < 0.0 {
                     return None;
                 }
-                self.face_contains(origin + t * dir, face, normal).then_some(RayHit {
-                    cell: index,
-                    t,
-                    face: None,
-                })
+                self.face_contains(origin + t * dir, face, normal).then_some(t)
             })
-            .collect();
-        hits.sort_by(|a, b| a.t.total_cmp(&b.t));
-        hits.into_iter()
+            .min_by(f32::total_cmp)?;
+        Some((t, origin + t * dir))
     }
 }
 
@@ -161,82 +153,37 @@ mod tests {
     }
 
     #[test]
-    fn raycast_pierces_a_single_face_reporting_t_and_no_entry_face() {
-        let hits = xy_triangle()
-            .raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            hits,
-            vec![RayHit {
-                cell: 0,
-                t: 5.0,
-                face: None
-            }]
-        );
+    fn pierce_reports_the_hit_t_and_point() {
+        let hit = xy_triangle().pierce(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0));
+        assert_eq!(hit, Some((5.0, Vec3::new(1.0, 1.0, 0.0))));
     }
 
     #[test]
-    fn raycast_orders_stacked_faces_nearest_first() {
-        // Far face (z = -3) listed first, near face (z = 0) second: the sort must reorder by t.
-        let verts = vec![
-            Vec3::new(0.0, 0.0, -3.0),
-            Vec3::new(4.0, 0.0, -3.0),
-            Vec3::new(0.0, 4.0, -3.0),
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(4.0, 0.0, 0.0),
-            Vec3::new(0.0, 4.0, 0.0),
-        ];
-        let geom = Mesh3DGridGeometry::new(verts, vec![vec![0, 1, 2], vec![3, 4, 5]]);
-
-        let hits = geom
-            .raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            hits,
-            vec![
-                RayHit {
-                    cell: 1,
-                    t: 5.0,
-                    face: None
-                },
-                RayHit {
-                    cell: 0,
-                    t: 8.0,
-                    face: None
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn raycast_ignores_faces_behind_the_origin() {
+    fn pierce_ignores_the_surface_behind_the_origin() {
         // Cast away from the face: the intersection sits at negative t.
-        let geom = xy_triangle();
         assert!(
-            geom.raycast(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, 1.0))
-                .next()
+            xy_triangle()
+                .pierce(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, 1.0))
                 .is_none()
         );
     }
 
     #[test]
-    fn raycast_through_the_plane_outside_the_polygon_misses() {
+    fn pierce_through_the_plane_outside_the_polygon_misses() {
         // Meets the face's plane at (5, 5, 0), outside the triangle.
-        let geom = xy_triangle();
         assert!(
-            geom.raycast(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
-                .next()
+            xy_triangle()
+                .pierce(Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
                 .is_none()
         );
     }
 
     #[test]
-    fn raycast_parallel_to_a_face_misses() {
-        // Ray lies in the face's plane: no single intersection.
-        let geom = xy_triangle();
+    fn pierce_parallel_to_a_face_misses() {
+        // Ray lies in the face's plane: no single touch point.
         assert!(
-            geom.raycast(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
-                .next()
+            xy_triangle()
+                .pierce(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
                 .is_none()
         );
     }
