@@ -6,12 +6,20 @@ use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry};
 
 use glam::Vec3;
 
-use crate::{graph::geometry::Mesh3DGridGeometry, prelude::Grid, region::Region};
+use crate::{
+    grid::{Connection, ConnectionOf},
+    prelude::Grid,
+    region::Region,
+};
+
+/// Per face, per edge: the face across that edge and the edge index it takes there, or `None` at a
+/// boundary.
+type Adjacency = Vec<Vec<Option<(usize, usize)>>>;
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct GraphGrid {
-    adjacency: Vec<Vec<Option<usize>>>,
+    adjacency: Adjacency,
 }
 
 /// The mesh is not edge-manifold: an edge is shared by three or more faces.
@@ -31,19 +39,18 @@ impl std::fmt::Display for NonManifoldError {
 impl std::error::Error for NonManifoldError {}
 
 impl GraphGrid {
-    /// Builds a mesh grid and its geometry from per-face vertex-index lists and vertex positions.
+    /// Builds a mesh grid from per-face vertex-index lists. Topology only, so the caller keeps the
+    /// faces to pair with whichever geometry it wants.
     /// Returns [`NonManifoldError`] if an edge is shared by three or more faces.
-    pub fn from_faces(
-        faces: Vec<Vec<usize>>,
-        verts: Vec<Vec3>,
-    ) -> Result<(GraphGrid, Mesh3DGridGeometry), NonManifoldError> {
-        let adjacency = Self::adjacency_from_faces(&faces)?;
-        Ok((GraphGrid { adjacency }, Mesh3DGridGeometry::new(verts, faces)))
+    pub fn from_faces(faces: &[Vec<usize>]) -> Result<GraphGrid, NonManifoldError> {
+        Ok(GraphGrid {
+            adjacency: Self::adjacency_from_faces(faces)?,
+        })
     }
 
     /// Derives face-to-face adjacency by matching edges shared between faces.
-    fn adjacency_from_faces(faces: &[Vec<usize>]) -> Result<Vec<Vec<Option<usize>>>, NonManifoldError> {
-        let mut adjacency: Vec<Vec<Option<usize>>> = faces.iter().map(|f| vec![None; f.len()]).collect();
+    fn adjacency_from_faces(faces: &[Vec<usize>]) -> Result<Adjacency, NonManifoldError> {
+        let mut adjacency: Adjacency = faces.iter().map(|f| vec![None; f.len()]).collect();
         let mut edge_map: HashMap<(usize, usize), (usize, usize)> = HashMap::new();
         let mut closed_edges: HashSet<(usize, usize)> = HashSet::new();
 
@@ -61,8 +68,10 @@ impl GraphGrid {
                         let (other_face, other_i) = *e.get();
                         e.remove();
                         closed_edges.insert(edge);
-                        adjacency[face_idx][i] = Some(other_face);
-                        adjacency[other_face][other_i] = Some(face_idx);
+                        // Each side records the other's edge index, so crossing the boundary reports
+                        // the way back without anyone recomputing it.
+                        adjacency[face_idx][i] = Some((other_face, other_i));
+                        adjacency[other_face][other_i] = Some((face_idx, i));
                     }
                 }
             }
@@ -77,8 +86,8 @@ impl GraphGrid {
     }
 }
 
-/// Merges adjacent triangles whose normals agree within `max_angle` radians into n-gon faces, passing
-/// non-mergeable faces through unchanged.
+/// Merges adjacent triangles whose normals agree within `max_angle` radians into polygon faces,
+/// passing non-mergeable faces through unchanged.
 /// Returns [`NonManifoldError`] if an edge is shared by three or more faces.
 pub fn merge_coplanar(
     mut faces: Vec<Vec<usize>>,
@@ -110,7 +119,7 @@ pub fn merge_coplanar(
         let mut group = vec![i];
         let mut queue = VecDeque::from([i]);
         while let Some(current) = queue.pop_front() {
-            for &neighbor in adjacency[current].iter().flatten() {
+            for (neighbor, _) in adjacency[current].iter().flatten().copied() {
                 if face_group[neighbor].is_some() {
                     continue;
                 }
@@ -136,7 +145,7 @@ pub fn merge_coplanar(
         for &f in group {
             let face = &faces[f];
             for (i, (&a, &b)) in face.iter().zip(face.iter().cycle().skip(1)).enumerate() {
-                let interior = adjacency[f][i].is_some_and(|nbr| face_group[nbr] == Some(g));
+                let interior = adjacency[f][i].is_some_and(|(nbr, _)| face_group[nbr] == Some(g));
                 if !interior {
                     boundary_edges.push((a, b));
                 }
@@ -196,20 +205,13 @@ impl Grid for GraphGrid {
             .flatten()
     }
 
-    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
-        *self.adjacency.get(cell.into())?.get(direction.into())?
-    }
-
-    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
-        self.adjacency
-            .get(cell.into())
-            .map(|adj| {
-                adj.iter()
-                    .enumerate()
-                    .filter_map(|(slot, neighbour)| neighbour.map(|neighbour| (slot, neighbour)))
-            })
-            .into_iter()
-            .flatten()
+    fn try_connection(
+        &self,
+        cell: impl Into<Self::Cell>,
+        direction: impl Into<Self::Slot>,
+    ) -> Option<ConnectionOf<Self>> {
+        let (neighbour, back) = (*self.adjacency.get(cell.into())?.get(direction.into())?)?;
+        Some(Connection::new(neighbour, back))
     }
 }
 
@@ -220,7 +222,7 @@ pub struct FaceRegion {
 }
 
 impl FaceRegion {
-    /// A region covering face ids `0..len`.
+    /// A region covering the first `len` face ids.
     pub fn new(len: usize) -> Self {
         Self { len }
     }
@@ -251,12 +253,14 @@ mod tests {
     use super::*;
 
     // A triangle strip 0-1-2: face 0 shares an edge with 1, face 1 with 2; 0 and 2 are not adjacent.
+    // Each entry pairs the neighbouring face with the edge index it uses for the shared edge, so the
+    // strip's middle face is reached through slot 0 from either side.
     fn strip() -> GraphGrid {
         GraphGrid {
             adjacency: vec![
-                vec![Some(1), None, None],
-                vec![Some(0), Some(2), None],
-                vec![Some(1), None, None],
+                vec![Some((1, 0)), None, None],
+                vec![Some((0, 0)), Some((2, 0)), None],
+                vec![Some((1, 1)), None, None],
             ],
         }
     }
@@ -289,14 +293,8 @@ mod tests {
     // Two triangles sharing edge {1,2}; every other edge is a boundary.
     #[test]
     fn from_faces_links_faces_that_share_an_edge() {
-        let verts = vec![
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(1.0, 1.0, 0.0),
-        ];
         let faces = vec![vec![0, 1, 2], vec![2, 1, 3]];
-        let (grid, _geometry) = GraphGrid::from_faces(faces, verts).unwrap();
+        let grid = GraphGrid::from_faces(&faces).unwrap();
 
         assert_eq!(grid.slots(0usize).count(), 3);
         assert_eq!(grid.slots(1usize).count(), 3);

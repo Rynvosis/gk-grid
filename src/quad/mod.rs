@@ -4,7 +4,10 @@ mod layout;
 use glam::{IVec2, Vec2};
 pub use layout::QuadChunkLayout;
 
-use crate::{grid::TotalGrid, prelude::*};
+use crate::{
+    grid::{Connection, ConnectionOf, TotalGrid},
+    prelude::*,
+};
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
@@ -18,13 +21,13 @@ impl Grid for QuadGrid {
         ALL_QUAD_DIRS.into_iter()
     }
 
-    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
-        Some(cell.into() + direction.into().delta())
-    }
-
-    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
-        let cell = cell.into();
-        ALL_QUAD_DIRS.into_iter().map(move |dir| (dir, cell + dir.delta()))
+    fn try_connection(
+        &self,
+        cell: impl Into<Self::Cell>,
+        direction: impl Into<Self::Slot>,
+    ) -> Option<ConnectionOf<Self>> {
+        let direction = direction.into();
+        Some(Connection::new(cell.into() + direction.delta(), direction.opposite()))
     }
 }
 
@@ -44,6 +47,16 @@ impl QuadDir {
             QuadDir::N => IVec2::new(0, 1),
             QuadDir::W => IVec2::new(-1, 0),
             QuadDir::S => IVec2::new(0, -1),
+        }
+    }
+
+    /// The direction leading back, which is the slot the neighbour shares this edge by.
+    pub fn opposite(self) -> Self {
+        match self {
+            QuadDir::E => QuadDir::W,
+            QuadDir::N => QuadDir::S,
+            QuadDir::W => QuadDir::E,
+            QuadDir::S => QuadDir::N,
         }
     }
 }
@@ -73,7 +86,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn neighbours_yield_the_four_orthogonals_in_ccw_winding() {
+    fn neighbours_yield_the_four_orthogonal_dirs_in_ccw_winding() {
         let grid = QuadGrid {};
         let cell = IVec2::new(2, 3);
         assert_eq!(

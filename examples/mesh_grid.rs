@@ -4,6 +4,10 @@
 use bevy::prelude::*;
 use gk_grid::prelude::{tilemap_gizmo::UniformTilemapGizmo, *};
 
+#[path = "common/orbit.rs"]
+mod orbit;
+use orbit::{Orbit, orbit_camera};
+
 // Shared between the rendered sphere and the grid build, so the wireframe lands on the surface.
 const RADIUS: f32 = 1.0;
 const SUBDIVISIONS: u32 = 1; // base icosahedron: 20 faces, 12 verts
@@ -15,13 +19,6 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, orbit_camera)
         .run();
-}
-
-#[derive(Component)]
-struct Orbit {
-    yaw: f32,
-    pitch: f32,
-    radius: f32,
 }
 
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
@@ -43,11 +40,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(0.0, 2.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        Orbit {
-            yaw: 0.0,
-            pitch: 0.3,
-            radius: 5.0,
-        },
+        Orbit::new(5.0),
     ));
 
     // Build the grid from the same icosphere the sphere renders, so the wireframe lands on the surface.
@@ -58,32 +51,4 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
     let map = DenseTileStore::from_region(region, |_| ());
     let grid_entity = commands.spawn((grid, geometry)).id();
     commands.spawn((map, UniformTilemapGizmo { color: Color::WHITE }, TilemapOf(grid_entity)));
-}
-
-fn orbit_camera(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut camera: Query<(&mut Orbit, &mut Transform)>) {
-    let Ok((mut orbit, mut transform)) = camera.single_mut() else {
-        return;
-    };
-    let speed = 1.5 * time.delta_secs();
-    if keys.any_pressed([KeyCode::ArrowLeft, KeyCode::KeyA]) {
-        orbit.yaw -= speed;
-    }
-    if keys.any_pressed([KeyCode::ArrowRight, KeyCode::KeyD]) {
-        orbit.yaw += speed;
-    }
-    if keys.any_pressed([KeyCode::ArrowUp, KeyCode::KeyW]) {
-        orbit.pitch += speed;
-    }
-    if keys.any_pressed([KeyCode::ArrowDown, KeyCode::KeyS]) {
-        orbit.pitch -= speed;
-    }
-    // Clamp short of the poles so `looking_at` doesn't degenerate when the view aligns with up.
-    orbit.pitch = orbit.pitch.clamp(-1.5, 1.5);
-
-    let pos = Vec3::new(
-        orbit.radius * orbit.pitch.cos() * orbit.yaw.sin(),
-        orbit.radius * orbit.pitch.sin(),
-        orbit.radius * orbit.pitch.cos() * orbit.yaw.cos(),
-    );
-    *transform = Transform::from_translation(pos).looking_at(Vec3::ZERO, Vec3::Y);
 }

@@ -20,9 +20,13 @@ pub mod prelude {
     };
     pub use crate::{
         chunk::ChunkLayout,
-        graph::{FaceRegion, GraphGrid, NonManifoldError, geometry::Mesh3DGridGeometry, merge_coplanar},
+        graph::{
+            FaceRegion, GraphGrid, NonManifoldError,
+            geometry::{Mesh3DGridGeometry, radial::RadialMeshGeometry},
+            merge_coplanar,
+        },
         grid::{
-            CellOf, CornerOf, Grid, SlotOf, TotalGrid,
+            CellOf, Connection, ConnectionOf, CornerOf, Grid, SlotOf, TotalGrid,
             geometry::{
                 GridGeometry, Layerable, PointQuery, RayCast, RayHit, RayHitOf, Surface, TotalGridGeometry,
                 TotalPointQuery,

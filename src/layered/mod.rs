@@ -4,7 +4,10 @@ pub(crate) mod geometry;
 
 use std::ops::Range;
 
-use crate::{grid::Grid, region::Region};
+use crate::{
+    grid::{Connection, ConnectionOf, Grid},
+    region::Region,
+};
 
 /// A base cell plus which layer it sits on.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
@@ -51,6 +54,11 @@ impl<G> LayeredGrid<G> {
     pub fn new(base: G) -> Self {
         Self { base }
     }
+
+    /// The grid the layers are stacked on.
+    pub fn base(&self) -> &G {
+        &self.base
+    }
 }
 
 impl<G: Grid> Grid for LayeredGrid<G> {
@@ -66,35 +74,32 @@ impl<G: Grid> Grid for LayeredGrid<G> {
             .chain([LayeredSlot::Up, LayeredSlot::Down])
     }
 
-    fn try_neighbour(&self, cell: impl Into<Self::Cell>, direction: impl Into<Self::Slot>) -> Option<Self::Cell> {
+    fn try_connection(
+        &self,
+        cell: impl Into<Self::Cell>,
+        direction: impl Into<Self::Slot>,
+    ) -> Option<ConnectionOf<Self>> {
         let layered_cell: Self::Cell = cell.into();
         let direction: Self::Slot = direction.into();
 
+        // Stepping along the base keeps the layer, and the way back is the base's own way back.
+        // A cap is its own inverse: leaving upwards means entering from below.
         match direction {
-            LayeredSlot::Base(slot) => self
-                .base
-                .try_neighbour(layered_cell.cell, slot)
-                .map(|cell| LayeredCell::new(cell, layered_cell.layer)),
-            LayeredSlot::Up => Some(LayeredCell::new(layered_cell.cell, layered_cell.layer + 1)),
-            LayeredSlot::Down => Some(LayeredCell::new(layered_cell.cell, layered_cell.layer - 1)),
+            LayeredSlot::Base(slot) => self.base.try_connection(layered_cell.cell, slot).map(|connection| {
+                Connection::new(
+                    LayeredCell::new(connection.cell, layered_cell.layer),
+                    LayeredSlot::Base(connection.back),
+                )
+            }),
+            LayeredSlot::Up => Some(Connection::new(
+                LayeredCell::new(layered_cell.cell, layered_cell.layer + 1),
+                LayeredSlot::Down,
+            )),
+            LayeredSlot::Down => Some(Connection::new(
+                LayeredCell::new(layered_cell.cell, layered_cell.layer - 1),
+                LayeredSlot::Up,
+            )),
         }
-    }
-
-    fn neighbours(&self, cell: impl Into<Self::Cell>) -> impl Iterator<Item = (Self::Slot, Self::Cell)> {
-        let layered_cell: Self::Cell = cell.into();
-        self.base
-            .neighbours(layered_cell.cell)
-            .map(move |(slot, cell)| (LayeredSlot::Base(slot), LayeredCell::new(cell, layered_cell.layer)))
-            .chain([
-                (
-                    LayeredSlot::Up,
-                    LayeredCell::new(layered_cell.cell, layered_cell.layer + 1),
-                ),
-                (
-                    LayeredSlot::Down,
-                    LayeredCell::new(layered_cell.cell, layered_cell.layer - 1),
-                ),
-            ])
     }
 }
 

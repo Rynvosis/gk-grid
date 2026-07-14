@@ -69,7 +69,12 @@ fn trace_ray(
 
         // March, recolouring empty cells, until a solid cell stops the ray (or the cursor).
         let mut stop_t = cursor_dist;
-        for hit in geom.raycast(local_origin, local_dir).take_while(|h| h.t <= cursor_dist) {
+        // The quad grid is stateless, so the march ignores it; it is in the signature because a mesh
+        // grid's march cannot work out its neighbours without one.
+        for hit in geom
+            .raycast(&QuadGrid {}, local_origin, local_dir)
+            .take_while(|h| h.t <= cursor_dist)
+        {
             match store.get(hit.cell) {
                 Some(&true) => {
                     stop_t = hit.t; // hit a wall: stop, leave it for the orange drawer

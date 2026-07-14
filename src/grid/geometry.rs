@@ -17,7 +17,7 @@ pub trait GridGeometry {
     ) -> Option<impl Iterator<Item = (CornerOf<Self::Grid>, Self::Position)>>;
 }
 
-/// Geometry where every cell has a center and corners, so its lookups are infallible.
+/// Geometry where every cell has a centre and corners, so its lookups are infallible.
 pub trait TotalGridGeometry: GridGeometry {
     fn cell_center(&self, cell: impl Into<CellOf<Self::Grid>>) -> Self::Position {
         self.try_cell_center(cell).expect("total geometry")
@@ -65,7 +65,16 @@ pub trait RayCast: GridGeometry {
     /// edge-adjacent to the last with the entry slot in `face` (`None` for the first cell).
     /// A cell may recur where the geometry folds. The stream may be unbounded, so consumers
     /// bound it (for example `take_while` on `t`).
-    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>>;
+    ///
+    /// Takes the grid as well as the geometry: the geometry knows where the ray leaves a cell, but
+    /// only the topology knows what lies across that boundary. A geometry whose neighbours are
+    /// implied by its cell coordinates may ignore it.
+    fn raycast(
+        &self,
+        grid: &Self::Grid,
+        origin: Self::Position,
+        dir: Self::Position,
+    ) -> impl Iterator<Item = RayHitOf<Self::Grid>>;
 }
 
 /// A geometry whose cells are 2D patches embedded in 3D space.

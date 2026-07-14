@@ -72,6 +72,11 @@ impl<C: GridCell, T> SparseTileStore<C, T> {
     pub fn insert(&mut self, cell: C, value: T) -> Option<T> {
         self.map.insert(cell, value)
     }
+
+    /// Empties a cell, returning the value it held.
+    pub fn remove(&mut self, cell: C) -> Option<T> {
+        self.map.remove(&cell)
+    }
 }
 
 impl<C: GridCell, T> TileStore for SparseTileStore<C, T> {

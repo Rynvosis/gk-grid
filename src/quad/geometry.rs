@@ -115,7 +115,14 @@ impl PointQuery for QuadGridGeometry {
 impl TotalPointQuery for QuadGridGeometry {}
 
 impl RayCast for QuadGridGeometry {
-    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
+    /// The quad grid's neighbours are its cell coordinates plus an offset, so the march needs no
+    /// topology and ignores the grid.
+    fn raycast(
+        &self,
+        _grid: &Self::Grid,
+        origin: Self::Position,
+        dir: Self::Position,
+    ) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
         // Transform ray to grid space
         let inv = self.projection.inverse();
         let local_origin = self.swizzle.invert(origin).xy();
@@ -297,7 +304,7 @@ mod tests {
     #[test]
     fn raycast_marches_cells_in_ray_order() {
         let (geom, origin, dir, cells) = diagonal();
-        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        let hits: Vec<_> = geom.raycast(&QuadGrid {}, origin, dir).take(cells.len() + 1).collect();
         assert_eq!(hits.len(), cells.len() + 1, "unexpected hit count");
         for (hit, &cell) in hits.iter().zip(&cells) {
             assert_eq!(hit.cell, cell);
@@ -307,7 +314,7 @@ mod tests {
     #[test]
     fn raycast_t_is_nondecreasing() {
         let (geom, origin, dir, cells) = diagonal();
-        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        let hits: Vec<_> = geom.raycast(&QuadGrid {}, origin, dir).take(cells.len() + 1).collect();
         for w in hits.windows(2) {
             assert!(w[1].t >= w[0].t, "t must be non-decreasing: {} < {}", w[1].t, w[0].t);
         }
@@ -316,7 +323,7 @@ mod tests {
     #[test]
     fn raycast_consecutive_cells_are_edge_adjacent() {
         let (geom, origin, dir, cells) = diagonal();
-        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        let hits: Vec<_> = geom.raycast(&QuadGrid {}, origin, dir).take(cells.len() + 1).collect();
         for w in hits.windows(2) {
             let delta = (w[1].cell - w[0].cell).abs();
             assert!(
@@ -331,7 +338,7 @@ mod tests {
     #[test]
     fn raycast_midpoint_samples_land_in_reported_cell() {
         let (geom, origin, dir, cells) = diagonal();
-        let hits: Vec<_> = geom.raycast(origin, dir).take(cells.len() + 1).collect();
+        let hits: Vec<_> = geom.raycast(&QuadGrid {}, origin, dir).take(cells.len() + 1).collect();
         for w in hits.windows(2) {
             let mid_t = (w[0].t + w[1].t) / 2.0;
             let sample = origin + mid_t * dir;
@@ -353,7 +360,7 @@ mod tests {
         let grid = QuadGrid {};
         let origin = Vec3::new(48.0, 56.0, 0.0);
         let dir = Vec3::new(1.0, -1.0, 0.0);
-        let hits: Vec<_> = geom.raycast(origin, dir).take(8).collect();
+        let hits: Vec<_> = geom.raycast(&QuadGrid {}, origin, dir).take(8).collect();
 
         assert!(hits[0].face.is_none(), "origin cell has no entry face");
         for w in hits.windows(2) {

@@ -7,10 +7,12 @@ description = "A grid library for Rust and Bevy, generic over grid shape."
 repository = "https://github.com/Rynvosis/gk-grid"
 keywords = ["grid","tilemap","bevy"]
 categories = ["game-development"]
+exclude = ["assets/"]  # demo models; examples only, no need to ship them to crates.io
 
 [dependencies]
 bevy = { version = "0.19", optional = true }
 glam = "0.32"
+hexasphere = "18"
 
 [features]
 default = ["std"]
@@ -44,4 +46,8 @@ required-features = ["bevy"]
 
 [[example]]
 name = "mesh_raycast"
+required-features = ["bevy"]
+
+[[example]]
+name = "sphere_build"
 required-features = ["bevy"]

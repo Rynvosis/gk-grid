@@ -8,7 +8,7 @@ use crate::graph::{GraphGrid, NonManifoldError, geometry::Mesh3DGridGeometry};
 impl GraphGrid {
     /// Builds a mesh grid and its geometry from a Bevy triangle mesh, welding vertices that share a position.
     ///
-    /// Panics if the mesh is not an indexed `TriangleList` or lacks `Float32x3` positions;
+    /// Panics if the mesh is not a `TriangleList` or lacks `Float32x3` positions;
     /// returns [`NonManifoldError`] if the welded mesh is not edge-manifold.
     pub fn from_mesh(mesh: &Mesh) -> Result<(GraphGrid, Mesh3DGridGeometry), NonManifoldError> {
         assert_eq!(
@@ -20,25 +20,31 @@ impl GraphGrid {
             .attribute(Mesh::ATTRIBUTE_POSITION)
             .and_then(|attr| attr.as_float3())
             .expect("mesh has Float32x3 positions");
-        let indices = mesh.indices().expect("mesh is indexed");
+        // A mesh may be non-indexed (a triangle soup), in which case its corners are the positions
+        // in order. Welding merges them either way, so the index buffer is only a shortcut.
+        let corners: Vec<usize> = match mesh.indices() {
+            Some(indices) => indices.iter().collect(),
+            None => (0..positions.len()).collect(),
+        };
 
         // Weld vertices that share a position (by exact bits) onto one id, so triangles meeting at a
         // vertex reference the same id and from_faces can actually detect their shared edges.
         let mut verts: Vec<Vec3> = Vec::new();
-        let mut ids: HashMap<[u32; 3], usize> = HashMap::new();
-        let mut welded: Vec<usize> = Vec::with_capacity(indices.len());
-        for i in indices.iter() {
-            let p = positions[i];
-            let key = [p[0].to_bits(), p[1].to_bits(), p[2].to_bits()];
-            let id = *ids.entry(key).or_insert_with(|| {
-                verts.push(Vec3::from_array(p));
+        let mut vertex_ids: HashMap<[u32; 3], usize> = HashMap::new();
+        let mut welded: Vec<usize> = Vec::with_capacity(corners.len());
+        for corner in corners {
+            let position = positions[corner];
+            let key = [position[0].to_bits(), position[1].to_bits(), position[2].to_bits()];
+            let id = *vertex_ids.entry(key).or_insert_with(|| {
+                verts.push(Vec3::from_array(position));
                 verts.len() - 1
             });
             welded.push(id);
         }
 
         let faces: Vec<Vec<usize>> = welded.chunks(3).map(|tri| tri.to_vec()).collect();
-        Self::from_faces(faces, verts)
+        let grid = Self::from_faces(&faces)?;
+        Ok((grid, Mesh3DGridGeometry::new(verts, faces)))
     }
 }
 

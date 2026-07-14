@@ -25,6 +25,11 @@ impl<Geo> LayeredGeometry<Geo> {
     pub fn new(base: Geo, spacing: f32) -> Self {
         Self { base, spacing }
     }
+
+    /// The surface the layers are stacked on.
+    pub fn base(&self) -> &Geo {
+        &self.base
+    }
 }
 
 impl<Geo: Layerable> LayeredGeometry<Geo> {
@@ -59,12 +64,17 @@ impl<Geo> RayCast for LayeredGeometry<Geo>
 where
     Geo: Layerable + PointQuery,
 {
-    fn raycast(&self, origin: Self::Position, dir: Self::Position) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
+    fn raycast(
+        &self,
+        grid: &Self::Grid,
+        origin: Self::Position,
+        dir: Self::Position,
+    ) -> impl Iterator<Item = RayHitOf<Self::Grid>> {
         let spacing = self.spacing;
         let mut layer = self.layer_of(origin);
 
         // The base march's first item is the origin cell, so skip it and seed from a point query instead.
-        let mut walls = self.base.raycast(origin, dir).skip(1).peekable();
+        let mut walls = self.base.raycast(grid.base(), origin, dir).skip(1).peekable();
         let mut caps = self.base.layer_crossings(origin, dir, spacing).peekable();
 
         // Deliberately every cell containing the origin: folded bases seed multivalued. The lateral
@@ -83,18 +93,18 @@ where
                 let wall_t = walls.peek().map(|h| h.t);
                 let cap_t = caps.peek().map(|&(t, _)| t);
 
-                match (wall_t, cap_t) {
-                    (None, None) => return None,
+                return match (wall_t, cap_t) {
+                    (None, None) => None,
                     // Wall next; wins ties so the corner case enters the neighbouring column
                     // before stepping layers within it.
                     (Some(wt), ct) if ct.is_none_or(|c| wt <= c) => {
                         let hit = walls.next().unwrap();
                         base_cell = Some(hit.cell);
-                        return Some(RayHit {
+                        Some(RayHit {
                             cell: LayeredCell::new(hit.cell, layer),
                             t: hit.t,
                             face: hit.face.map(LayeredSlot::Base),
-                        });
+                        })
                     }
                     _ => {
                         let (t, step) = caps.next().unwrap();
@@ -105,13 +115,13 @@ where
                         // hole: infinite caps with no base cell would spin here; closed once `raycast`
                         // takes a region.
                         let Some(cell) = base_cell else { continue };
-                        return Some(RayHit {
+                        Some(RayHit {
                             cell: LayeredCell::new(cell, layer),
                             t,
                             face: Some(face),
-                        });
+                        })
                     }
-                }
+                };
             }
         });
 
@@ -176,7 +186,7 @@ mod tests {
         let grid = LayeredGrid::new(QuadGrid {});
         // Chosen so wall crossings (x=1 at t=0.7, ...) and cap crossings (z=1 at t=0.45, ...) never coincide.
         let hits: Vec<_> = geom
-            .raycast(Vec3::new(0.3, 0.5, 0.1), Vec3::new(1.0, 0.0, 2.0))
+            .raycast(&grid, Vec3::new(0.3, 0.5, 0.1), Vec3::new(1.0, 0.0, 2.0))
             .take(6)
             .collect();
 

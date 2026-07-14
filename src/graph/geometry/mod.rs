@@ -1,3 +1,5 @@
+pub(crate) mod radial;
+
 use glam::Vec3;
 
 use crate::{
@@ -186,5 +188,16 @@ mod tests {
                 .pierce(Vec3::new(1.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0))
                 .is_none()
         );
+    }
+
+    // The surface picking backend composes these two: pierce for the point, cells_at to name the
+    // face. If the pierce point drifts off-plane, cells_at's on-plane test silently drops it.
+    #[test]
+    fn pierce_point_feeds_cells_at_back_to_the_same_face() {
+        let geometry = xy_triangle();
+        let (_, point) = geometry
+            .pierce(Vec3::new(1.0, 1.0, 5.0), Vec3::new(0.0, 0.0, -1.0))
+            .expect("the ray hits the triangle");
+        assert_eq!(geometry.cells_at(point).collect::<Vec<_>>(), vec![0]);
     }
 }
